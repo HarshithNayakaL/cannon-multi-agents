@@ -1,0 +1,561 @@
+@import 'tailwindcss';
+
+/* =========================================================================
+   Cannon design system
+
+   Apple HIG proportions: generous whitespace, large soft geometry, layered
+   shadows for depth, translucent materials over content, and restrained
+   colour. One accent per agent. Motion is 300–500ms and only ever on
+   transform/opacity.
+   ========================================================================= */
+
+@theme {
+  /* SF Pro first, so Apple hardware renders the typeface this system was
+     drawn against. Inter is the cross-platform stand-in — near-identical
+     metrics — so it never degrades to a browser default anywhere else.
+     JetBrains Mono is reserved for values a machine produced. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-inter), 'Segoe UI', sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', var(--font-inter-tight), var(--font-inter),
+    'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --breakpoint-3xl: 120rem;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Canvas: a graphite ramp, not pure black. Pure black kills the shadows
+     that carry depth. */
+  --bg-base: #0b0c0f;
+  --bg-panel: #15171c;
+  --bg-raise: #1d2027;
+  --bg-sunken: #0f1114;
+
+  /* Materials — translucent surfaces that sit over content. */
+  --material: rgba(30, 33, 40, 0.72);
+  --material-thick: rgba(30, 33, 40, 0.9);
+  --highlight: rgba(255, 255, 255, 0.07);
+
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+
+  --ink: #f2f3f5;
+  --ink-2: #9ea4b0;
+  --ink-3: #6b7280;
+
+  --accent: #4c8dff;
+  --accent-soft: rgba(76, 141, 255, 0.14);
+
+  --good: #32d583;
+  --warn: #fdb022;
+  --bad: #f97066;
+  --idle: #5a616e;
+
+  /* 8px spacing grid. */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+  --s-8: 4rem;
+
+  /* Apple geometry: large, soft, consistent. */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-pill: 980px;
+
+  /* Layered shadows — several soft passes rather than one hard drop. */
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --e-2: 0 1px 2px rgba(0, 0, 0, 0.28), 0 6px 16px rgba(0, 0, 0, 0.26);
+  --e-3:
+    0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.32), 0 32px 64px rgba(0, 0, 0, 0.28);
+
+  --fast: 200ms;
+  --base: 320ms;
+  --slow: 480ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-base: #f5f5f7;
+  --bg-panel: #ffffff;
+  --bg-raise: #f0f0f3;
+  --bg-sunken: #fafafc;
+
+  --material: rgba(255, 255, 255, 0.76);
+  --material-thick: rgba(255, 255, 255, 0.94);
+  --highlight: rgba(255, 255, 255, 0.9);
+
+  --line: rgba(9, 11, 16, 0.08);
+  --line-strong: rgba(9, 11, 16, 0.14);
+
+  --ink: #1d1d1f;
+  --ink-2: #6e6e73;
+  --ink-3: #96969b;
+
+  --good: #0f9d58;
+  --warn: #b25e02;
+  --bad: #d0342c;
+  --idle: #b0b0b6;
+
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --e-2: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(0, 0, 0, 0.06);
+  --e-3:
+    0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 28px rgba(0, 0, 0, 0.08), 0 32px 64px rgba(0, 0, 0, 0.06);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+/* =========================================================================
+   Type — fluid, tightly tracked at display sizes, per Apple's scale
+   ========================================================================= */
+
+.t-display {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4.5vw + 1rem, 4rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.032em;
+}
+
+.t-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.2vw + 1rem, 1.75rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.026em;
+}
+
+.t-subtitle {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.018em;
+}
+
+.t-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+}
+
+.t-small {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.t-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.004em;
+  color: var(--ink-3);
+}
+
+/* Machine values only. Tabular figures so columns of numbers align. */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+/* Numeric readouts — the one place scale is allowed to shout. */
+.readout {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+/* =========================================================================
+   Canvas
+   ========================================================================= */
+
+.canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      80rem 44rem at 50% -20rem,
+      color-mix(in oklab, var(--accent) 13%, transparent),
+      transparent 68%
+    ),
+    var(--bg-base);
+  transition: background var(--slow) var(--ease);
+}
+
+/* =========================================================================
+   Surfaces
+
+   `.card` is opaque and elevated — it sits in the flow.
+   `.material` is translucent and blurred — it sits over the flow.
+   Both carry a 1px top highlight, the detail that reads as a real edge
+   catching light rather than a drawn border.
+   ========================================================================= */
+
+.card {
+  position: relative;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-2);
+}
+
+.material {
+  position: relative;
+  background: var(--material);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-3);
+}
+
+.card::before,
+.material::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--highlight) 22%,
+    var(--highlight) 78%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .material {
+    background: var(--material-thick);
+  }
+}
+
+/* Interactive surfaces respond to pointer the way Apple's `.interactive()`
+   glass does: a small lift on hover, a settle on press. */
+.lift {
+  transition:
+    transform var(--base) var(--ease-out),
+    box-shadow var(--base) var(--ease),
+    background var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.lift:hover {
+  background: var(--bg-raise);
+}
+
+.lift:active {
+  transform: scale(0.99);
+}
+
+/* =========================================================================
+   Controls — pill geometry, 44px touch targets
+   ========================================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-pill);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    transform var(--base) var(--ease-out),
+    box-shadow var(--base) var(--ease),
+    background var(--fast) var(--ease),
+    opacity var(--fast) var(--ease);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 10px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--accent) 38%, transparent);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.btn-quiet {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.btn-quiet:hover:not(:disabled) {
+  background: var(--bg-raise);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease),
+    transform var(--base) var(--ease-out);
+}
+
+.icon-btn:hover {
+  background: var(--bg-raise);
+  color: var(--ink);
+}
+
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+.field {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 1rem;
+  letter-spacing: -0.011em;
+  transition:
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease);
+}
+
+.field::placeholder {
+  color: var(--ink-3);
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  letter-spacing: -0.006em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   Scrollbars
+   ========================================================================= */
+
+.scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  overscroll-behavior: contain;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--r-pill);
+}
+
+.scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* =========================================================================
+   Motion — transform and opacity only
+   ========================================================================= */
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.enter {
+  animation: enter var(--slow) var(--ease-out) both;
+}
+
+@keyframes sheet {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sheet {
+  animation: sheet var(--base) var(--ease-out) both;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade {
+  animation: fade var(--fast) var(--ease) both;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.85);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tick {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: blink 1.2s var(--ease) infinite;
+}
+
+@keyframes scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+/* Tool call in progress: light travelling the top edge of the card. */
+.scan {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  height: 2px;
+  width: 25%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: scan 1.6s var(--ease) infinite;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 400;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.draw {
+  stroke-dasharray: 400;
+  animation: draw var(--slow) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

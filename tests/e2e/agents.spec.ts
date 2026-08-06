@@ -1,0 +1,89 @@
+import { expect, test, type Page } from '@playwright/test';
+
+async function signIn(page: Page, destination: string) {
+  await page.goto('/signin');
+  await page.getByLabel('Email').fill('demo@cannon.dev');
+  await page.getByRole('button', { name: /enter cannon/i }).click();
+  await expect(page).toHaveURL(/\/fitness/);
+  if (destination !== '/fitness') await page.goto(destination);
+}
+
+/** The inspector documents the same tool names, so assertions stay in the transcript. */
+function transcript(page: Page) {
+  return page.getByTestId('transcript');
+}
+
+function toolCall(page: Page, name: string) {
+  return transcript(page).locator(`[data-testid="tool-call"][data-tool="${name}"]`);
+}
+
+test.describe('fitness agent', () => {
+  test('logs a set through a tool call and renders it as a data card', async ({ page }) => {
+    await signIn(page, '/fitness');
+
+    await page.getByLabel('Message the agent').fill('Log today: bench press 4x8 @ 72.5kg RPE 8');
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    // The tool call itself is a visible event in the transcript.
+    const call = toolCall(page, 'log_workout');
+    await expect(call).toBeVisible();
+    await expect(call).toHaveAttribute('data-state', 'output-available');
+
+    // …and its result is rendered as real data, not pasted JSON.
+    await expect(call.getByRole('heading', { name: 'Bench Press' })).toBeVisible();
+    await expect(call.getByText('4×8')).toBeVisible();
+    await expect(call.getByText('72.5')).toBeVisible();
+    await expect(call.getByRole('meter', { name: /perceived exertion/i })).toBeVisible();
+  });
+
+  test('offers starter prompts on first run and sends one on click', async ({ page }) => {
+    await signIn(page, '/fitness');
+
+    const suggestion = transcript(page).getByRole('button', { name: /volume trend on bench/i });
+    await expect(suggestion).toBeVisible();
+    await suggestion.click();
+
+    const call = toolCall(page, 'get_progress_summary');
+    await expect(call).toBeVisible();
+    await expect(call.getByText('Volume trend')).toBeVisible();
+  });
+});
+
+test.describe('work agent', () => {
+  test('reads the board and flags what is slipping', async ({ page }) => {
+    await signIn(page, '/work');
+    await expect(page.getByRole('heading', { level: 1, name: 'Work Agent' })).toBeVisible();
+
+    await page.getByLabel('Message the agent').fill("What's slipping this week?");
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    const call = toolCall(page, 'list_tasks');
+    await expect(call).toBeVisible();
+    await expect(call.getByRole('heading', { name: 'Board' })).toBeVisible();
+    await expect(call.getByText(/slipping/i)).toBeVisible();
+  });
+
+  test('captures a task', async ({ page }) => {
+    await signIn(page, '/work');
+
+    await page
+      .getByLabel('Message the agent')
+      .fill('Add task: record the Cannon walkthrough, high priority');
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    const call = toolCall(page, 'create_task');
+    await expect(call).toBeVisible();
+    await expect(call.getByText('record the Cannon walkthrough')).toBeVisible();
+  });
+});
+
+test('the two agents keep separate transcripts', async ({ page }) => {
+  await signIn(page, '/fitness');
+  await page.getByLabel('Message the agent').fill('bench press 4x8 @ 70kg RPE 7');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(toolCall(page, 'log_workout')).toBeVisible();
+
+  await page.goto('/work');
+  await expect(page.getByRole('heading', { level: 1, name: 'Work Agent' })).toBeVisible();
+  await expect(transcript(page).locator('[data-testid="tool-call"]')).toHaveCount(0);
+});
