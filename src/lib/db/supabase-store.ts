@@ -1,9 +1,19 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import type { AgentId } from '@/lib/agents/types';
+import type { AgentId, CustomAgent, CustomAgentInput } from '@/lib/agents/types';
 import type {
+  AgentRecord,
+  AgentRecordInput,
   CannonStore,
+  Expense,
+  ExpenseFilter,
+  ExpenseInput,
   Note,
+  ReadingFilter,
+  ReadingInput,
+  ReadingItem,
+  ReadingStatus,
+  RecordFilter,
   ScoredDocument,
   StoredMessage,
   Task,
@@ -40,6 +50,75 @@ type TaskRow = {
 };
 
 type NoteRow = { id: string; content: string; source: string; date: string };
+
+type ExpenseRow = {
+  id: string;
+  date: string;
+  merchant: string;
+  category: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
+};
+
+type ReadingRow = {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReadingStatus;
+  topic: string | null;
+  takeaway: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AgentRow = {
+  id: string;
+  name: string;
+  title: string;
+  tagline: string;
+  accent: string;
+  system_prompt: string;
+  keywords: string[] | null;
+  suggestions: string[] | null;
+  created_at: string;
+};
+
+type RecordRow = {
+  id: string;
+  agent: string;
+  title: string;
+  body: string;
+  tags: string[] | null;
+  created_at: string;
+};
+
+function toCustomAgent(row: AgentRow): CustomAgent {
+  return {
+    id: row.id,
+    name: row.name,
+    title: row.title,
+    tagline: row.tagline,
+    accent: row.accent,
+    systemPrompt: row.system_prompt,
+    // `text[]` comes back null rather than empty when the column was never
+    // written, and every consumer maps over these.
+    keywords: row.keywords ?? [],
+    suggestions: row.suggestions ?? [],
+    createdAt: row.created_at,
+  };
+}
+
+function toRecord(row: RecordRow): AgentRecord {
+  return {
+    id: row.id,
+    agent: row.agent,
+    title: row.title,
+    body: row.body,
+    tags: row.tags ?? [],
+    createdAt: row.created_at,
+  };
+}
 
 type MatchRow = {
   id: string;
@@ -168,6 +247,178 @@ export class SupabaseStore implements CannonStore {
     }));
   }
 
+  async logExpense(input: ExpenseInput): Promise<Expense> {
+    const row = unwrap(
+      await this.client
+        .from('expenses')
+        .insert({
+          date: input.date,
+          merchant: input.merchant,
+          category: input.category,
+          amount: input.amount,
+          note: input.note,
+        })
+        .select()
+        .single<ExpenseRow>(),
+      'insert expense',
+    );
+    return toExpense(row);
+  }
+
+  async listExpenses(filter: ExpenseFilter = {}): Promise<Expense[]> {
+    let query = this.client.from('expenses').select('*').order('date', { ascending: false });
+    if (filter.category) query = query.ilike('category', filter.category);
+    if (filter.since) query = query.gte('date', filter.since);
+    const rows = unwrap(await query.returns<ExpenseRow[]>(), 'list expenses');
+    return rows.map(toExpense);
+  }
+
+  async addReading(input: ReadingInput): Promise<ReadingItem> {
+    const row = unwrap(
+      await this.client
+        .from('reading')
+        .insert({
+          title: input.title,
+          kind: input.kind,
+          status: input.status,
+          topic: input.topic,
+          takeaway: input.takeaway,
+        })
+        .select()
+        .single<ReadingRow>(),
+      'insert reading item',
+    );
+    return toReading(row);
+  }
+
+  async listReading(filter: ReadingFilter = {}): Promise<ReadingItem[]> {
+    let query = this.client.from('reading').select('*').order('updated_at', { ascending: false });
+    if (filter.status) query = query.eq('status', filter.status);
+    if (filter.topic) query = query.eq('topic', filter.topic);
+    const rows = unwrap(await query.returns<ReadingRow[]>(), 'list reading');
+    return rows.map(toReading);
+  }
+
+  async updateReadingStatus(
+    id: string,
+    status: ReadingStatus,
+    takeaway?: string | null,
+  ): Promise<ReadingItem | null> {
+    const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+    if (takeaway !== undefined) patch.takeaway = takeaway;
+    const { data, error } = await this.client
+      .from('reading')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .maybeSingle<ReadingRow>();
+    if (error) throw new Error(`Supabase update reading failed: ${error.message}`);
+    return data ? toReading(data) : null;
+  }
+
+  async createAgent(input: CustomAgentInput): Promise<CustomAgent> {
+    const row = unwrap(
+      await this.client
+        .from('agents')
+        .upsert(
+          {
+            id: input.id,
+            name: input.name,
+            title: input.title,
+            tagline: input.tagline,
+            accent: input.accent,
+            system_prompt: input.systemPrompt,
+            keywords: input.keywords,
+            suggestions: input.suggestions,
+          },
+          { onConflict: 'id' },
+        )
+        .select()
+        .single<AgentRow>(),
+      'insert agent',
+    );
+    return toCustomAgent(row);
+  }
+
+  async listAgents(): Promise<CustomAgent[]> {
+    const rows = unwrap(
+      await this.client
+        .from('agents')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .returns<AgentRow[]>(),
+      'list agents',
+    );
+    return rows.map(toCustomAgent);
+  }
+
+  async findAgent(agentId: AgentId): Promise<CustomAgent | null> {
+    const { data, error } = await this.client
+      .from('agents')
+      .select('*')
+      .eq('id', agentId)
+      .maybeSingle<AgentRow>();
+    if (error) throw new Error(`Supabase find agent failed: ${error.message}`);
+    return data ? toCustomAgent(data) : null;
+  }
+
+  async deleteAgent(agentId: AgentId): Promise<boolean> {
+    // Records, documents and messages are deleted explicitly rather than left
+    // to a foreign key: `documents` and `messages` are shared with the four
+    // built-in desks and cannot carry a cascade to `agents`. Data goes first,
+    // so a failure part-way leaves the agent still present and retryable
+    // rather than orphaning its rows.
+    for (const table of ['records', 'documents', 'messages'] as const) {
+      const { error } = await this.client.from(table).delete().eq('agent', agentId);
+      if (error) throw new Error(`Supabase delete ${table} failed: ${error.message}`);
+    }
+
+    const { data, error } = await this.client
+      .from('agents')
+      .delete()
+      .eq('id', agentId)
+      .select('id')
+      .maybeSingle<{ id: string }>();
+    if (error) throw new Error(`Supabase delete agent failed: ${error.message}`);
+    return data !== null;
+  }
+
+  async addRecord(input: AgentRecordInput): Promise<AgentRecord> {
+    const row = unwrap(
+      await this.client
+        .from('records')
+        .insert({
+          agent: input.agent,
+          title: input.title,
+          body: input.body,
+          tags: input.tags,
+        })
+        .select()
+        .single<RecordRow>(),
+      'insert record',
+    );
+    return toRecord(row);
+  }
+
+  async listRecords(agent: AgentId, filter: RecordFilter = {}): Promise<AgentRecord[]> {
+    let query = this.client
+      .from('records')
+      .select('*')
+      .eq('agent', agent)
+      .order('created_at', { ascending: false })
+      .limit(filter.limit ?? 50);
+
+    if (filter.tag) query = query.contains('tags', [filter.tag]);
+    if (filter.query) {
+      // Escape the PostgREST `or` separators before interpolating user text.
+      const term = filter.query.replace(/[,()]/g, ' ').trim();
+      if (term.length > 0) query = query.or(`title.ilike.%${term}%,body.ilike.%${term}%`);
+    }
+
+    const rows = unwrap(await query.returns<RecordRow[]>(), 'list records');
+    return rows.map(toRecord);
+  }
+
   async upsertDocuments(documents: VectorDocumentInput[]): Promise<number> {
     if (documents.length === 0) return 0;
     const { error } = await this.client.from('documents').insert(
@@ -258,6 +509,31 @@ function toTask(row: TaskRow): Task {
     priority: row.priority,
     dueDate: row.due_date,
     project: row.project,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toExpense(row: ExpenseRow): Expense {
+  return {
+    id: row.id,
+    date: row.date,
+    merchant: row.merchant,
+    category: row.category,
+    amount: Number(row.amount),
+    note: row.note,
+    createdAt: row.created_at,
+  };
+}
+
+function toReading(row: ReadingRow): ReadingItem {
+  return {
+    id: row.id,
+    title: row.title,
+    kind: row.kind,
+    status: row.status,
+    topic: row.topic,
+    takeaway: row.takeaway,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

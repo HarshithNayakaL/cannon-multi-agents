@@ -2,6 +2,7 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import type { AgentDefinition } from '@/lib/agents/types';
+import type { CannonStore } from '@/lib/db/types';
 import {
   calculateMacros,
   isLowerBodyLift,
@@ -9,7 +10,6 @@ import {
   summarizeProgress,
 } from '@/lib/agents/fitness/logic';
 import type { WorkoutLoggedResult } from '@/lib/agents/tool-results';
-import { getStore } from '@/lib/db';
 import { ingest } from '@/lib/rag/retrieve';
 import { daysAgoISO, today } from '@/lib/utils';
 
@@ -34,7 +34,7 @@ Direct, data-driven coach. Lead with the number, then the recommendation. No mot
 filler, no hedging on programming decisions, no restating what the user just told you.
 Keep responses under six lines unless the user asks for detail.`;
 
-function buildTools(): ToolSet {
+function buildTools(store: CannonStore): ToolSet {
   return {
     log_workout: tool({
       description:
@@ -68,7 +68,6 @@ function buildTools(): ToolSet {
         notes,
         date,
       }): Promise<WorkoutLoggedResult> => {
-        const store = await getStore();
         const workout = await store.logWorkout({
           date: date ?? today(),
           exercise,
@@ -115,7 +114,6 @@ function buildTools(): ToolSet {
         rangeDays: z.number().int().min(7).max(365).default(42),
       }),
       execute: async ({ exercise, rangeDays }) => {
-        const store = await getStore();
         const workouts = await store.listWorkouts({
           exercise,
           since: daysAgoISO(rangeDays),
@@ -170,5 +168,28 @@ export const fitnessAgent: AgentDefinition = {
     "I'm stalling on squat — what would you change?",
     'Macros for 74kg, moderate activity, cutting',
   ],
+  keywords: [
+    'workout',
+    'lift',
+    'bench',
+    'squat',
+    'deadlift',
+    'press',
+    'reps',
+    'sets',
+    'rpe',
+    'gym',
+    'training',
+    'macros',
+    'protein',
+    'calories',
+    'volume',
+    'stalling',
+    'kg',
+    'muscle',
+    'cardio',
+    'session',
+  ],
+  custom: false,
   buildTools,
 };

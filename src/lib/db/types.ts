@@ -1,4 +1,4 @@
-import type { AgentId } from '@/lib/agents/types';
+import type { AgentId, CustomAgent, CustomAgentInput } from '@/lib/agents/types';
 
 export type WorkoutSet = {
   exercise: string;
@@ -38,11 +38,76 @@ export type Task = {
 
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
 
+export type Expense = {
+  id: string;
+  date: string;
+  merchant: string;
+  category: string;
+  amount: number;
+  note: string | null;
+  createdAt: string;
+};
+
+export type ExpenseInput = Omit<Expense, 'id' | 'createdAt'>;
+
+export type ExpenseFilter = {
+  category?: string;
+  /** Inclusive lower bound, ISO date. */
+  since?: string;
+};
+
+export type ReadingStatus = 'queued' | 'reading' | 'finished';
+
+export type ReadingItem = {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReadingStatus;
+  topic: string | null;
+  takeaway: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReadingInput = Omit<ReadingItem, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type ReadingFilter = {
+  status?: ReadingStatus;
+  topic?: string;
+};
+
 export type Note = {
   id: string;
   content: string;
   source: string;
   date: string;
+};
+
+/**
+ * The generic unit a user-created agent works in.
+ *
+ * A built-in desk has a table shaped like its domain — sets and reps, due
+ * dates, amounts. An agent invented at runtime cannot, so it gets one honest
+ * shape instead: a titled entry with a body and tags, scoped to that agent.
+ * It is deliberately not a second notes table — `notes` belongs to the work
+ * desk and is reachable by its own tools.
+ */
+export type AgentRecord = {
+  id: string;
+  agent: AgentId;
+  title: string;
+  body: string;
+  tags: string[];
+  createdAt: string;
+};
+
+export type AgentRecordInput = Omit<AgentRecord, 'id' | 'createdAt'>;
+
+export type RecordFilter = {
+  /** Case-insensitive substring over title and body. */
+  query?: string;
+  tag?: string;
+  limit?: number;
 };
 
 /** A chunk of text embedded for retrieval, hard-scoped to one agent. */
@@ -99,6 +164,27 @@ export interface CannonStore {
 
   addNote(input: Omit<Note, 'id'>): Promise<Note>;
   listNotes(since?: string): Promise<Note[]>;
+
+  logExpense(input: ExpenseInput): Promise<Expense>;
+  listExpenses(filter?: ExpenseFilter): Promise<Expense[]>;
+
+  addReading(input: ReadingInput): Promise<ReadingItem>;
+  listReading(filter?: ReadingFilter): Promise<ReadingItem[]>;
+  updateReadingStatus(
+    id: string,
+    status: ReadingStatus,
+    takeaway?: string | null,
+  ): Promise<ReadingItem | null>;
+
+  /** User-created agents. The four built-in desks are code and never appear here. */
+  createAgent(input: CustomAgentInput): Promise<CustomAgent>;
+  listAgents(): Promise<CustomAgent[]>;
+  findAgent(id: AgentId): Promise<CustomAgent | null>;
+  /** Returns false when there was nothing to delete. Cascades to the agent's data. */
+  deleteAgent(id: AgentId): Promise<boolean>;
+
+  addRecord(input: AgentRecordInput): Promise<AgentRecord>;
+  listRecords(agent: AgentId, filter?: RecordFilter): Promise<AgentRecord[]>;
 
   upsertDocuments(documents: VectorDocumentInput[]): Promise<number>;
   searchDocuments(agent: AgentId, embedding: number[], limit: number): Promise<ScoredDocument[]>;

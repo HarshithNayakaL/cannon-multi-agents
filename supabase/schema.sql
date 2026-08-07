@@ -57,11 +57,84 @@ create table if not exists notes (
 
 create index if not exists notes_date_idx on notes (date desc);
 
+-- ── Finance ─────────────────────────────────────────────────────────────────
+
+-- `numeric`, never a float. Money in a float column accumulates rounding error
+-- across a month of sums, and the totals are the whole point of this desk.
+create table if not exists expenses (
+  id         uuid primary key default gen_random_uuid(),
+  date       date not null,
+  merchant   text not null,
+  category   text not null default 'other'
+             check (category in ('food', 'transport', 'housing', 'health',
+                                 'subscriptions', 'shopping', 'other')),
+  amount     numeric(12, 2) not null check (amount >= 0),
+  note       text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists expenses_date_idx on expenses (date desc);
+create index if not exists expenses_category_idx on expenses (category);
+
+-- ── Learning ────────────────────────────────────────────────────────────────
+
+create table if not exists reading (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null,
+  kind       text not null default 'article'
+             check (kind in ('book', 'paper', 'article', 'course', 'video')),
+  status     text not null default 'queued'
+             check (status in ('queued', 'reading', 'finished')),
+  topic      text,
+  takeaway   text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists reading_status_idx on reading (status);
+create index if not exists reading_updated_idx on reading (updated_at desc);
+
+-- ── User-created agents ─────────────────────────────────────────────────────
+--
+-- The four built-in desks are code, not rows. Only agents created at runtime
+-- live here, which is why there is no seed data and no bootstrapping step.
+
+create table if not exists agents (
+  id            text primary key check (id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$' and length(id) <= 32),
+  name          text not null,
+  title         text not null,
+  tagline       text not null,
+  accent        text not null check (accent ~* '^#[0-9a-f]{6}$'),
+  system_prompt text not null,
+  keywords      text[] not null default '{}',
+  suggestions   text[] not null default '{}',
+  created_at    timestamptz not null default now()
+);
+
+-- The generic unit a created agent works in. A built-in desk has a table
+-- shaped like its domain; an agent invented at runtime cannot, so it gets one
+-- honest shape instead. Deleting the agent takes its records with it.
+create table if not exists records (
+  id         uuid primary key default gen_random_uuid(),
+  agent      text not null references agents (id) on delete cascade,
+  title      text not null,
+  body       text not null,
+  tags       text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists records_agent_idx on records (agent, created_at desc);
+create index if not exists records_tags_idx on records using gin (tags);
+
 -- ── Shared: transcripts and the vector store ────────────────────────────────
 
+-- No CHECK enumerating agents: the roster is open, because agents are created
+-- at runtime. A foreign key to `agents` would be wrong too — the four built-in
+-- desks are code and have no row there. The application is the authority on
+-- which ids exist, and it validates before every write.
 create table if not exists messages (
   id         uuid primary key default gen_random_uuid(),
-  agent      text not null check (agent in ('fitness', 'work')),
+  agent      text not null,
   role       text not null check (role in ('user', 'assistant', 'system')),
   parts      jsonb not null,
   created_at timestamptz not null default now()
@@ -74,7 +147,7 @@ create index if not exists messages_agent_idx on messages (agent, created_at des
 -- so both backends write into this column without a migration.
 create table if not exists documents (
   id         uuid primary key default gen_random_uuid(),
-  agent      text not null check (agent in ('fitness', 'work')),
+  agent      text not null,
   content    text not null,
   embedding  vector(768) not null,
   metadata   jsonb not null default '{}'::jsonb,
@@ -127,6 +200,10 @@ alter table workouts     enable row level security;
 alter table body_metrics enable row level security;
 alter table tasks        enable row level security;
 alter table notes        enable row level security;
+alter table expenses     enable row level security;
+alter table reading      enable row level security;
+alter table agents       enable row level security;
+alter table records      enable row level security;
 alter table messages     enable row level security;
 alter table documents    enable row level security;
 

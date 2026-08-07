@@ -1,17 +1,18 @@
 'use client';
 
 import { X } from 'lucide-react';
-import { useState } from 'react';
 
 import type { CannonMetadata } from '@/lib/agents/message';
 import type { AgentProfile } from '@/lib/agents/registry';
 
 /**
- * Prompt Inspector.
+ * Inspector.
  *
- * Two jobs at once: a genuine debugging aid — the live system prompt, the tool
- * surface, the exact chunks retrieval pulled and their scores — and a visible
- * statement that the prompt is engineered rather than improvised.
+ * A debugging aid: which provider actually answered, the tool surface in
+ * scope, and the exact chunks retrieval pulled with their scores.
+ *
+ * The system prompt is deliberately not here. It never leaves the server —
+ * `AgentProfile` does not carry it — so there is nothing to render.
  *
  * Everything in here is a machine value, so everything in here is monospace.
  * That is the one place in the product where that is true.
@@ -25,15 +26,13 @@ export function PromptInspector({
   metadata?: CannonMetadata;
   onClose?: () => void;
 }) {
-  const [promptOpen, setPromptOpen] = useState(true);
-
   return (
     <div className="flex h-full flex-col">
       <header
         className="flex items-center gap-2 border-b px-4 py-4 sm:px-5"
         style={{ borderColor: 'var(--line)' }}
       >
-        <h2 className="t-label flex-1">Prompt Inspector</h2>
+        <h2 className="t-label flex-1">Inspector</h2>
         {onClose ? (
           <button
             type="button"
@@ -80,29 +79,6 @@ export function PromptInspector({
               No provider key is set, so inference is simulated. Tools, retrieval and persistence
               are running for real.
             </Hint>
-          ) : null}
-        </Section>
-
-        <Section
-          title="System prompt"
-          action={
-            <button
-              type="button"
-              onClick={() => setPromptOpen((open) => !open)}
-              aria-expanded={promptOpen}
-              className="t-label lift rounded-[var(--r-sm)] px-1"
-            >
-              {promptOpen ? 'collapse' : 'expand'}
-            </button>
-          }
-        >
-          {promptOpen ? (
-            <pre
-              className="scroll mono max-h-72 overflow-auto rounded-[var(--r-sm)] p-3 leading-[1.7] whitespace-pre-wrap"
-              style={{ background: 'var(--bg-sunken)', color: 'var(--ink-2)' }}
-            >
-              {profile.systemPrompt}
-            </pre>
           ) : null}
         </Section>
 
@@ -180,12 +156,10 @@ export function PromptInspector({
 
 function Section({
   title,
-  action,
   children,
   last = false,
 }: {
   title: string;
-  action?: React.ReactNode;
   children: React.ReactNode;
   last?: boolean;
 }) {
@@ -194,10 +168,7 @@ function Section({
       className={last ? 'px-4 py-4 sm:px-5 sm:py-5' : 'border-b px-4 py-4 sm:px-5 sm:py-5'}
       style={{ borderColor: 'var(--line)' }}
     >
-      <div className="mb-2.5 flex items-center gap-2">
-        <h3 className="t-label flex-1">{title}</h3>
-        {action}
-      </div>
+      <h3 className="t-label mb-2.5">{title}</h3>
       {children}
     </section>
   );

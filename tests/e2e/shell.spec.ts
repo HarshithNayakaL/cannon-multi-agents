@@ -6,19 +6,24 @@ async function visitFitness(page: Page) {
 
 async function openInspector(page: Page, isMobile: boolean) {
   if (isMobile) await page.getByRole('button', { name: /show prompt inspector/i }).click();
-  await expect(page.getByRole('heading', { name: 'Prompt Inspector' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspector' })).toBeVisible();
 }
 
-test('the prompt inspector exposes the live prompt, tools and retrieval sources', async ({
-  page,
-  isMobile,
-}) => {
+test('the inspector exposes the tool surface and retrieval sources', async ({ page, isMobile }) => {
   await visitFitness(page);
   await openInspector(page, isMobile);
 
   await expect(page.getByText('log_workout(exercise', { exact: false })).toBeVisible();
-  await expect(page.getByText('You are the Fitness Agent', { exact: false })).toBeVisible();
   await expect(page.getByText('workout-log', { exact: false }).first()).toBeVisible();
+});
+
+// The prompt is the agent's instructions, not product surface. `toProfile`
+// strips it on the server, so it should not reach the browser at all — not as
+// rendered text, and not in the RSC payload behind it.
+test('the system prompt never reaches the browser', async ({ page }) => {
+  await visitFitness(page);
+  await expect(page.getByText('You are the Fitness Agent', { exact: false })).toHaveCount(0);
+  expect(await page.content()).not.toContain('You are the Fitness Agent');
 });
 
 test('the inspector names the provider that answered', async ({ page, isMobile }) => {
@@ -55,9 +60,11 @@ test('switching desks re-lights the accent', async ({ page }) => {
 
   await expect.poll(accent).toBe('#FF9F0A');
 
-  await page.goto('/work');
-  await expect(page.getByRole('heading', { level: 1, name: 'Work Agent' })).toBeVisible();
-  await expect.poll(accent).toBe('#0A84FF');
+  await page.goto('/finance');
+  await expect.poll(accent).toBe('#32d583');
+
+  await page.goto('/learning');
+  await expect.poll(accent).toBe('#c084fc');
 });
 
 test('dark is the default theme and the toggle survives a reload', async ({ page }) => {

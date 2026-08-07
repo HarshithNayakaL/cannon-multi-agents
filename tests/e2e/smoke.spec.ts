@@ -1,9 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-test('the root path redirects straight to the fitness desk', async ({ page }) => {
+test('the root path is the dispatch screen, not a desk', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveURL(/\/fitness/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Fitness Agent' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'What do you need?' })).toBeVisible();
+  // Every desk is on screen from the start — that is the point of the screen.
+  // Presence, not an exact count: the roster is open, and another spec may
+  // have a created desk in flight.
+  for (const desk of ['fitness', 'work', 'finance', 'learning']) {
+    await expect(page.locator(`[data-testid="agent-tile"][data-agent="${desk}"]`)).toBeVisible();
+  }
 });
 
 test('health reports which backends are live', async ({ request }) => {

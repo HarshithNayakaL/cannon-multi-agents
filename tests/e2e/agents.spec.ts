@@ -48,7 +48,8 @@ test.describe('fitness agent', () => {
 test.describe('work agent', () => {
   test('reads the board and flags what is slipping', async ({ page }) => {
     await visit(page, '/work');
-    await expect(page.getByRole('heading', { level: 1, name: 'Work Agent' })).toBeVisible();
+    // Short name on a phone, full title from `sm` up.
+    await expect(page.getByRole('heading', { level: 1, name: /^Work/ })).toBeVisible();
 
     await page.getByLabel('Message the agent').fill("What's slipping this week?");
     await page.getByRole('button', { name: 'Send message' }).click();
@@ -73,13 +74,70 @@ test.describe('work agent', () => {
   });
 });
 
-test('the two agents keep separate transcripts', async ({ page }) => {
+test.describe('finance agent', () => {
+  test('captures a spend and renders it as a data card', async ({ page }) => {
+    await visit(page, '/finance');
+
+    await page.getByLabel('Message the agent').fill('Spent 840 at BigBasket on groceries');
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    const call = toolCall(page, 'log_expense');
+    await expect(call).toBeVisible();
+    await expect(call).toHaveAttribute('data-state', 'output-available');
+    await expect(call.getByRole('heading', { name: 'BigBasket' })).toBeVisible();
+    await expect(call.getByText('food')).toBeVisible();
+  });
+
+  test('totals a window and breaks it down by category', async ({ page }) => {
+    await visit(page, '/finance');
+
+    await page.getByLabel('Message the agent').fill("What's my spend over the last 30 days?");
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    const call = toolCall(page, 'get_spending_summary');
+    await expect(call).toBeVisible();
+    await expect(call.getByRole('heading', { name: 'Spending' })).toBeVisible();
+    await expect(call.getByText('Per day')).toBeVisible();
+  });
+});
+
+test.describe('learning agent', () => {
+  test('reads the queue', async ({ page }) => {
+    await visit(page, '/learning');
+
+    await page.getByLabel('Message the agent').fill("What's still queued?");
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    const call = toolCall(page, 'list_reading');
+    await expect(call).toBeVisible();
+    await expect(call.getByRole('heading', { name: 'Queue' })).toBeVisible();
+    // The stat tile, not the several rows that also read "queued".
+    await expect(call.getByText('Queued', { exact: true })).toBeVisible();
+  });
+
+  test('queues something new', async ({ page }) => {
+    await visit(page, '/learning');
+
+    await page.getByLabel('Message the agent').fill('Add the RAG survey paper to my queue');
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    const call = toolCall(page, 'add_reading');
+    await expect(call).toBeVisible();
+    await expect(call.getByText('RAG survey paper')).toBeVisible();
+  });
+});
+
+// Retrieval is scoped inside the store query; this is the visible half of the
+// same guarantee — nothing one desk logged turns up on another.
+test('every desk keeps its own transcript', async ({ page }) => {
   await visit(page, '/fitness');
   await page.getByLabel('Message the agent').fill('bench press 4x8 @ 70kg RPE 7');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(toolCall(page, 'log_workout')).toBeVisible();
 
-  await page.goto('/work');
-  await expect(page.getByRole('heading', { level: 1, name: 'Work Agent' })).toBeVisible();
-  await expect(transcript(page).locator('[data-testid="tool-call"]')).toHaveCount(0);
+  for (const desk of ['/work', '/finance', '/learning']) {
+    await page.goto(desk);
+    await expect(transcript(page)).toBeVisible();
+    await expect(transcript(page).locator('[data-testid="tool-call"]')).toHaveCount(0);
+  }
 });

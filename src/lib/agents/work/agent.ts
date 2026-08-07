@@ -2,13 +2,13 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import type { AgentDefinition } from '@/lib/agents/types';
+import type { CannonStore } from '@/lib/db/types';
 import { describeFilter, findSlipping, summarizeNotes } from '@/lib/agents/work/logic';
 import type {
   TaskCreatedResult,
   TaskListResult,
   TaskUpdatedResult,
 } from '@/lib/agents/tool-results';
-import { getStore } from '@/lib/db';
 import { ingest } from '@/lib/rag/retrieve';
 import { daysAgoISO } from '@/lib/utils';
 
@@ -36,7 +36,7 @@ restating what the user already knows. Lead with what is at risk.`;
 const STATUSES = ['todo', 'doing', 'blocked', 'done'] as const;
 const PRIORITIES = ['low', 'medium', 'high'] as const;
 
-function buildTools(): ToolSet {
+function buildTools(store: CannonStore): ToolSet {
   return {
     create_task: tool({
       description: 'Capture a new task. Use whenever the user commits to doing something.',
@@ -59,7 +59,6 @@ function buildTools(): ToolSet {
         dueDate,
         project,
       }): Promise<TaskCreatedResult> => {
-        const store = await getStore();
         const task = await store.createTask({ title, priority, status, dueDate, project });
         return { kind: 'task-created', task };
       },
@@ -74,7 +73,6 @@ function buildTools(): ToolSet {
         project: z.string().nullable().default(null),
       }),
       execute: async ({ status, priority, project }): Promise<TaskListResult> => {
-        const store = await getStore();
         const tasks = await store.listTasks({
           status: status ?? undefined,
           priority: priority ?? undefined,
@@ -100,7 +98,6 @@ function buildTools(): ToolSet {
         status: z.enum(STATUSES),
       }),
       execute: async ({ id, status }): Promise<TaskUpdatedResult> => {
-        const store = await getStore();
         const task = await store.updateTaskStatus(id, status);
         return { kind: 'task-updated', task, requestedId: id };
       },
@@ -112,7 +109,6 @@ function buildTools(): ToolSet {
         rangeDays: z.number().int().min(1).max(180).default(7),
       }),
       execute: async ({ rangeDays }) => {
-        const store = await getStore();
         const notes = await store.listNotes(daysAgoISO(rangeDays));
         return summarizeNotes(notes, rangeDays);
       },
@@ -157,12 +153,41 @@ export const workAgent: AgentDefinition = {
     'Summarise my notes from the last 7 days',
     'Show everything blocked',
   ],
+  keywords: [
+    'task',
+    'todo',
+    'deadline',
+    'due',
+    'project',
+    'ship',
+    'blocked',
+    'slipping',
+    'priority',
+    'standup',
+    'meeting',
+    'notes',
+    'status',
+    'backlog',
+    'sprint',
+    'overdue',
+    'prd',
+  ],
+  custom: false,
   buildTools,
 };
 
-/** Ingest a free-text note into the work knowledge base. */
-export async function captureNote(content: string, source: string, date: string) {
-  const store = await getStore();
+/**
+ * Ingest a free-text note into the work knowledge base.
+ *
+ * Takes the store rather than reaching for it, same as `buildTools` — the
+ * ingest route has already resolved one by the time it calls this.
+ */
+export async function captureNote(
+  store: CannonStore,
+  content: string,
+  source: string,
+  date: string,
+) {
   const note = await store.addNote({ content, source, date });
   await ingest(store, 'work', `${date} (${source}) — ${content}`, { source, date });
   return note;
