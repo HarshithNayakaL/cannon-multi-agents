@@ -37,7 +37,7 @@ export function MobileTabBar({ profiles }: { profiles: AgentProfile[] }) {
           active={pathname.startsWith(`/${profile.id}`)}
           accent={profile.accent}
         >
-          <AgentIcon agent={profile.id} className="size-[17px]" />
+          <AgentIcon agent={profile.id} label={profile.name} className="size-[17px]" />
         </TabLink>
       ))}
 

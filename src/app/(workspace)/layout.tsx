@@ -1,10 +1,13 @@
 import { AgentRail } from '@/components/shell/agent-rail';
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar';
 import { CanvasField } from '@/components/ui/canvas-field';
-import { agents, toProfile } from '@/lib/agents/registry';
+import { listProfiles } from '@/lib/agents/registry';
 
-export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const profiles = agents.map(toProfile);
+/** The rail lists created agents, which live in the database. */
+export const dynamic = 'force-dynamic';
+
+export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
+  const profiles = await listProfiles();
 
   return (
     <div className="relative flex h-dvh w-full overflow-hidden">

@@ -10,6 +10,7 @@ import {
   ReadingListCard,
   ReadingUpdatedCard,
 } from '@/components/data/learning-cards';
+import { RecordAddedCard, RecordListCard } from '@/components/data/record-cards';
 import {
   NotesSummaryCard,
   TaskCreatedCard,
@@ -138,5 +139,9 @@ function ToolResultView({ output }: { output: unknown }) {
       return <ReadingListCard result={result} />;
     case 'reading-updated':
       return <ReadingUpdatedCard result={result} />;
+    case 'record-added':
+      return <RecordAddedCard result={result} />;
+    case 'record-list':
+      return <RecordListCard result={result} />;
   }
 }

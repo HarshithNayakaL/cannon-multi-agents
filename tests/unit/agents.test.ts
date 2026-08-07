@@ -1,8 +1,9 @@
 import type { LanguageModelV4Prompt } from '@ai-sdk/provider';
 import { describe, expect, it } from 'vitest';
 
-import { agents, resolveAgent, toProfile } from '@/lib/agents/registry';
-import { AGENT_IDS, isAgentId } from '@/lib/agents/types';
+import { builtinAgents, resolveAgent, toProfile } from '@/lib/agents/registry';
+import { BUILTIN_AGENT_IDS, isAgentId } from '@/lib/agents/types';
+import { MemoryStore } from '@/lib/db/memory-store';
 import {
   financeIntent,
   fitnessIntent,
@@ -13,23 +14,41 @@ import {
 } from '@/lib/ai/demo-model';
 
 describe('registry', () => {
-  it('exposes exactly the v1 agents', () => {
-    expect(agents.map((agent) => agent.id)).toEqual([...AGENT_IDS]);
+  it('exposes exactly the coded desks', () => {
+    expect(builtinAgents.map((agent) => agent.id)).toEqual([...BUILTIN_AGENT_IDS]);
   });
 
-  it('resolves known ids and refuses unknown ones instead of defaulting', () => {
-    expect(resolveAgent('fitness')?.id).toBe('fitness');
-    expect(resolveAgent('learning')?.id).toBe('learning');
-    expect(resolveAgent('accounting')).toBeNull();
-    expect(resolveAgent(undefined)).toBeNull();
+  it('resolves built-in ids without touching the store', async () => {
+    // No store passed: a built-in id must never need a database round-trip.
+    expect((await resolveAgent('fitness'))?.id).toBe('fitness');
+    expect((await resolveAgent('learning'))?.id).toBe('learning');
+  });
+
+  it('refuses an id that does not exist instead of defaulting to a desk', async () => {
+    const store = new MemoryStore();
+    expect(await resolveAgent('accounting', store)).toBeNull();
+    expect(await resolveAgent(undefined, store)).toBeNull();
+  });
+
+  // The slug becomes a URL segment and a database key, so shape is checked
+  // before anything reaches the store.
+  it('rejects malformed slugs without querying', () => {
     expect(isAgentId('work')).toBe(true);
+    expect(isAgentId('my-garden')).toBe(true);
+    expect(isAgentId('Garden')).toBe(false);
+    expect(isAgentId('9lives')).toBe(false);
+    expect(isAgentId('a--b')).toBe(false);
+    expect(isAgentId('trailing-')).toBe(false);
+    expect(isAgentId('../etc/passwd')).toBe(false);
+    expect(isAgentId('x'.repeat(33))).toBe(false);
+    expect(isAgentId(42)).toBe(false);
   });
 
   // The profile is the server/client boundary. Both of these are server-only:
   // the tool factory closes over the store, and the system prompt is the
   // agent's instructions rather than product surface.
   it('keeps the tool factory and the system prompt out of the client profile', () => {
-    for (const agent of agents) {
+    for (const agent of builtinAgents) {
       const profile = toProfile(agent) as Record<string, unknown>;
       expect('buildTools' in profile).toBe(false);
       expect('systemPrompt' in profile).toBe(false);
@@ -38,16 +57,17 @@ describe('registry', () => {
   });
 
   it('documents every tool it actually builds', () => {
-    for (const agent of agents) {
-      const built = Object.keys(agent.buildTools()).sort();
+    const store = new MemoryStore();
+    for (const agent of builtinAgents) {
+      const built = Object.keys(agent.buildTools(store)).sort();
       const documented = agent.toolSummaries.map((tool) => tool.name).sort();
       expect(documented).toEqual(built);
     }
   });
 
-  it('gives each agent a distinct accent so the two desks never look alike', () => {
-    const accents = new Set(agents.map((agent) => agent.accent));
-    expect(accents.size).toBe(agents.length);
+  it('gives each desk a distinct accent so no two look alike', () => {
+    const accents = new Set(builtinAgents.map((agent) => agent.accent));
+    expect(accents.size).toBe(builtinAgents.length);
   });
 });
 

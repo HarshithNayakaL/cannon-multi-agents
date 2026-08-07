@@ -2,13 +2,13 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import type { AgentDefinition } from '@/lib/agents/types';
+import type { CannonStore } from '@/lib/db/types';
 import {
   EXPENSE_CATEGORIES,
   normalizeCategory,
   summarizeSpending,
 } from '@/lib/agents/finance/logic';
 import type { ExpenseLoggedResult } from '@/lib/agents/tool-results';
-import { getStore } from '@/lib/db';
 import { ingest } from '@/lib/rag/retrieve';
 import { daysAgoISO, today } from '@/lib/utils';
 
@@ -30,7 +30,7 @@ STYLE
 Plain and unsentimental. Lead with the number, then the observation. No shaming,
 no cheerleading, no budgeting platitudes. Under six lines unless asked for detail.`;
 
-function buildTools(): ToolSet {
+function buildTools(store: CannonStore): ToolSet {
   return {
     log_expense: tool({
       description: 'Record a completed spend. Use for anything described in the past tense.',
@@ -50,7 +50,6 @@ function buildTools(): ToolSet {
           .describe('ISO date. Defaults to today when omitted.'),
       }),
       execute: async ({ merchant, amount, category, note, date }): Promise<ExpenseLoggedResult> => {
-        const store = await getStore();
         const expense = await store.logExpense({
           date: date ?? today(),
           merchant,
@@ -94,7 +93,6 @@ function buildTools(): ToolSet {
           .describe('Budget for the window, when the user states one.'),
       }),
       execute: async ({ rangeDays, category, budget }) => {
-        const store = await getStore();
         const expenses = await store.listExpenses({
           since: daysAgoISO(rangeDays),
           category: category ?? undefined,
@@ -149,5 +147,6 @@ export const financeAgent: AgentDefinition = {
     'saving',
     'burn',
   ],
+  custom: false,
   buildTools,
 };

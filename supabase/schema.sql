@@ -94,11 +94,47 @@ create table if not exists reading (
 create index if not exists reading_status_idx on reading (status);
 create index if not exists reading_updated_idx on reading (updated_at desc);
 
+-- ── User-created agents ─────────────────────────────────────────────────────
+--
+-- The four built-in desks are code, not rows. Only agents created at runtime
+-- live here, which is why there is no seed data and no bootstrapping step.
+
+create table if not exists agents (
+  id            text primary key check (id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$' and length(id) <= 32),
+  name          text not null,
+  title         text not null,
+  tagline       text not null,
+  accent        text not null check (accent ~* '^#[0-9a-f]{6}$'),
+  system_prompt text not null,
+  keywords      text[] not null default '{}',
+  suggestions   text[] not null default '{}',
+  created_at    timestamptz not null default now()
+);
+
+-- The generic unit a created agent works in. A built-in desk has a table
+-- shaped like its domain; an agent invented at runtime cannot, so it gets one
+-- honest shape instead. Deleting the agent takes its records with it.
+create table if not exists records (
+  id         uuid primary key default gen_random_uuid(),
+  agent      text not null references agents (id) on delete cascade,
+  title      text not null,
+  body       text not null,
+  tags       text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists records_agent_idx on records (agent, created_at desc);
+create index if not exists records_tags_idx on records using gin (tags);
+
 -- ── Shared: transcripts and the vector store ────────────────────────────────
 
+-- No CHECK enumerating agents: the roster is open, because agents are created
+-- at runtime. A foreign key to `agents` would be wrong too — the four built-in
+-- desks are code and have no row there. The application is the authority on
+-- which ids exist, and it validates before every write.
 create table if not exists messages (
   id         uuid primary key default gen_random_uuid(),
-  agent      text not null check (agent in ('fitness', 'work', 'finance', 'learning')),
+  agent      text not null,
   role       text not null check (role in ('user', 'assistant', 'system')),
   parts      jsonb not null,
   created_at timestamptz not null default now()
@@ -111,7 +147,7 @@ create index if not exists messages_agent_idx on messages (agent, created_at des
 -- so both backends write into this column without a migration.
 create table if not exists documents (
   id         uuid primary key default gen_random_uuid(),
-  agent      text not null check (agent in ('fitness', 'work', 'finance', 'learning')),
+  agent      text not null,
   content    text not null,
   embedding  vector(768) not null,
   metadata   jsonb not null default '{}'::jsonb,
@@ -166,6 +202,8 @@ alter table tasks        enable row level security;
 alter table notes        enable row level security;
 alter table expenses     enable row level security;
 alter table reading      enable row level security;
+alter table agents       enable row level security;
+alter table records      enable row level security;
 alter table messages     enable row level security;
 alter table documents    enable row level security;
 

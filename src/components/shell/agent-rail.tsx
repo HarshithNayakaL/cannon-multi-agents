@@ -49,7 +49,7 @@ export function AgentRail({ profiles }: { profiles: AgentProfile[] }) {
           accent={profile.accent}
           accentSoft={profile.accentSoft}
         >
-          <AgentIcon agent={profile.id} className="size-5" />
+          <AgentIcon agent={profile.id} label={profile.name} className="size-5" />
         </RailLink>
       ))}
 

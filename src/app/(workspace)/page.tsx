@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { DispatchConsole } from '@/components/dispatch/dispatch-console';
-import { agents, toProfile } from '@/lib/agents/registry';
+import { listProfiles } from '@/lib/agents/registry';
 import { availableModels } from '@/lib/ai/provider';
 
 export const metadata: Metadata = {
@@ -14,7 +14,8 @@ export const metadata: Metadata = {
  * `availableModels()` reads the provider keys out of the environment, and on
  * Vercel those exist at request time, not at build time. Prerendered, this
  * page baked in the empty build environment and told every visitor that no
- * models were configured while the API happily answered on Groq.
+ * models were configured while the API happily answered on Groq. The roster
+ * of created agents is a database read, which is equally not build-time.
  */
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,6 @@ export const dynamic = 'force-dynamic';
  * models so the catalog is filtered to what this deployment actually holds a
  * key for without the keys themselves going anywhere near the browser.
  */
-export default function DispatchRoute() {
-  return <DispatchConsole profiles={agents.map(toProfile)} models={availableModels()} />;
+export default async function DispatchRoute() {
+  return <DispatchConsole profiles={await listProfiles()} models={availableModels()} />;
 }

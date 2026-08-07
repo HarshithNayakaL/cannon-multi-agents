@@ -10,7 +10,7 @@ import type {
   LanguageModelV4Usage,
 } from '@ai-sdk/provider';
 
-import type { AgentId } from '@/lib/agents/types';
+import { isBuiltinAgentId, type AgentId, type BuiltinAgentId } from '@/lib/agents/types';
 
 /**
  * Deterministic stand-in language model.
@@ -136,7 +136,7 @@ export class DemoLanguageModel implements LanguageModelV4 {
  * fifth agent without a scripted parser should be a type error here, not a
  * silent fall-through to whichever desk the last `else` happened to name.
  */
-const INTENTS: Record<AgentId, (text: string) => ToolCallStep | null> = {
+const INTENTS: Record<BuiltinAgentId, (text: string) => ToolCallStep | null> = {
   fitness: fitnessIntent,
   work: workIntent,
   finance: financeIntent,
@@ -153,7 +153,7 @@ export function planStep(
   if (toolResult) return { type: 'text', text: narrateToolResult(agent, toolResult) };
 
   const text = lastUserText(prompt);
-  const intent = INTENTS[agent](text);
+  const intent = isBuiltinAgentId(agent) ? INTENTS[agent](text) : customIntent(text);
 
   if (intent !== null && availableTools.has(intent.toolName)) return intent;
   return { type: 'text', text: fallbackReply(agent, text) };
@@ -296,6 +296,59 @@ export function workIntent(text: string): ToolCallStep | null {
   }
 
   return null;
+}
+
+/**
+ * The scripted parser for a created agent.
+ *
+ * It only has to separate "keep this" from "what do I have", because that is
+ * the whole tool surface a created agent gets. Past-tense statements and
+ * anything phrased as an instruction to remember become a write; anything
+ * interrogative becomes a read.
+ */
+export function customIntent(text: string): ToolCallStep | null {
+  const normalized = text.toLowerCase().trim();
+  if (normalized.length === 0) return null;
+
+  const asks =
+    /^(what|which|when|where|who|how|show|list|find|search|tell me|do i|did i|have i)\b|\?$/.test(
+      normalized,
+    );
+
+  if (!asks && /^(remember|note|log|record|save|add|track)\b|^(i |my |the )/.test(normalized)) {
+    const body = text
+      .trim()
+      .replace(/^(remember|note|log|record|save|add|track)\s+(that\s+)?/i, '');
+    return {
+      type: 'tool-call',
+      toolName: 'remember',
+      input: { title: firstClause(body), body, tags: [] },
+    };
+  }
+
+  if (asks) {
+    const tag = /#([a-z0-9-]+)/.exec(normalized);
+    return {
+      type: 'tool-call',
+      toolName: 'recall',
+      // A bare "what have I recorded?" is a request for everything, not a
+      // search for the words "what have I recorded".
+      input: {
+        query: /^(what|show|list)\b.{0,40}$/.test(normalized) ? null : text.trim().slice(0, 200),
+        tag: tag ? tag[1] : null,
+        limit: 20,
+      },
+    };
+  }
+
+  return null;
+}
+
+/** The first sentence or clause, capped — used as a record's title. */
+function firstClause(text: string): string {
+  const clause = text.split(/[.;\n]/)[0].trim();
+  const title = clause.length > 0 ? clause : text.trim();
+  return title.length > 80 ? `${title.slice(0, 79)}…` : title;
 }
 
 export function financeIntent(text: string): ToolCallStep | null {
@@ -488,19 +541,35 @@ function narrateToolResult(agent: AgentId, result: Record<string, unknown>): str
         ? `Marked "${item.title}" finished, takeaway stored.`
         : `Marked "${item.title}" finished. No takeaway recorded — what is the one thing worth remembering?`;
     }
+    case 'record-added': {
+      const record = result.record as { title: string; tags: string[] } | undefined;
+      return `Noted: ${record?.title ?? 'that'}.${
+        record?.tags?.length ? ` Filed under ${record.tags.map((tag) => `#${tag}`).join(' ')}.` : ''
+      }`;
+    }
+    case 'record-list': {
+      const records = Array.isArray(result.records) ? result.records : [];
+      if (records.length === 0) return 'Nothing recorded here yet. Tell me something to keep.';
+      const tags = (result.tags as { tag: string; count: number }[] | undefined) ?? [];
+      return `${records.length} entr${records.length === 1 ? 'y' : 'ies'} here.${
+        tags.length > 0 ? ` Most of it is tagged ${tags[0].tag}.` : ''
+      } They are in the card below.`;
+    }
     default:
-      return DONE_LINE[agent];
+      return isBuiltinAgentId(agent)
+        ? DONE_LINE[agent]
+        : 'Done. Ask what I have recorded if you want it back.';
   }
 }
 
-const DONE_LINE: Record<AgentId, string> = {
+const DONE_LINE: Record<BuiltinAgentId, string> = {
   fitness: 'Done. Ask for a trend if you want the numbers behind it.',
   work: 'Done. Ask for the board if you want current state.',
   finance: 'Done. Ask for a summary if you want the totals behind it.',
   learning: 'Done. Ask for the queue if you want current state.',
 };
 
-const EXAMPLES: Record<AgentId, string> = {
+const EXAMPLES: Record<BuiltinAgentId, string> = {
   fitness:
     'I can log a set ("bench 4x8 @ 72.5kg RPE 8"), pull a trend ("volume on squat over 6 weeks"), or size up intake ("macros for 74kg cutting").',
   work: 'I can capture a task ("add task: ship Cannon, high priority"), read the board ("what\'s slipping?"), or summarise notes ("summarise the last 7 days").',
@@ -518,7 +587,11 @@ function fallbackReply(agent: AgentId, text: string): string {
     return `${simulated} Ask me something to see the loop run.`;
   }
 
-  return `${simulated} ${EXAMPLES[agent]}`;
+  return `${simulated} ${
+    isBuiltinAgentId(agent)
+      ? EXAMPLES[agent]
+      : 'I can record something ("remember that the ficus gets watered on Sundays") or read back what is here ("what have I recorded?").'
+  }`;
 }
 
 // ---------------------------------------------------------------------------

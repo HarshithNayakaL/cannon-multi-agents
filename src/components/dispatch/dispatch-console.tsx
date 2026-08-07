@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Check, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Plus, Sparkles, Trash2, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type FormEvent } from 'react';
 
@@ -42,6 +42,11 @@ export function DispatchConsole({
   const [pickedAgent, setPickedAgent] = useState<AgentId | null>(null);
   const [pickedModel, setPickedModel] = useState<string | null>(null);
 
+  // Creating an agent is a server round-trip that writes a row, so it needs
+  // real pending and error states rather than optimism.
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const trimmed = query.trim();
 
   // Re-scored on every keystroke. It is a keyword pass over four short word
@@ -75,6 +80,55 @@ export function DispatchConsole({
 
     const search = params.toString();
     router.push(`/${target.id}${search ? `?${search}` : ''}`);
+  }
+
+  /**
+   * Build a desk for whatever was typed.
+   *
+   * The new agent opens empty rather than with the description auto-sent: the
+   * sentence describes the *desk*, not a question for it, and firing it as a
+   * first message would put "track my houseplants" in the transcript as
+   * though it were a request.
+   */
+  async function create() {
+    if (trimmed.length < 3 || creating) return;
+    setCreating(true);
+    setCreateError(null);
+
+    try {
+      const response = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ description: trimmed }),
+      });
+      const payload = (await response.json()) as { agent?: AgentProfile; error?: string };
+
+      if (!response.ok || !payload.agent) {
+        setCreateError(payload.error ?? 'Could not create the agent.');
+        return;
+      }
+
+      // `refresh` repopulates the rail and this page's own agent list from the
+      // server before navigating, so the new desk is present when it lands.
+      router.refresh();
+      router.push(`/${payload.agent.id}`);
+    } catch {
+      setCreateError('Could not reach the server.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function remove(profile: AgentProfile) {
+    if (!profile.custom) return;
+    const response = await fetch(`/api/agents/${profile.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      setCreateError(payload?.error ?? `Could not delete ${profile.name}.`);
+      return;
+    }
+    if (pickedAgent === profile.id) setPickedAgent(null);
+    router.refresh();
   }
 
   return (
@@ -144,13 +198,21 @@ export function DispatchConsole({
             modelReason={suggestedModel?.reason ?? null}
             overridden={pickedAgent !== null}
             onGo={() => dispatch()}
+            onCreate={create}
+            busy={creating}
           />
         )}
+
+        {createError ? (
+          <p className="card t-small mb-6 p-4" style={{ color: 'var(--bad)' }}>
+            {createError}
+          </p>
+        ) : null}
 
         {/* ---------------- The field ---------------- */}
         <Section
           title="Agents"
-          note="Each desk has its own prompt, tools and retrieval scope. None can read another's data."
+          note="Each desk has its own prompt, tools and retrieval scope. None can read another's data. If none of them fits, describe what you need above and Cannon will build one."
         >
           <div className="grid gap-3 sm:grid-cols-2">
             {profiles.map((profile) => (
@@ -162,8 +224,11 @@ export function DispatchConsole({
                 selected={profile.id === agent}
                 scoring={trimmed.length > 0}
                 onSelect={() => setPickedAgent(profile.id)}
+                onDelete={profile.custom ? () => remove(profile) : undefined}
               />
             ))}
+
+            <CreateTile description={trimmed} busy={creating} onCreate={create} />
           </div>
         </Section>
 
@@ -256,6 +321,8 @@ function Recommendation({
   modelReason,
   overridden,
   onGo,
+  onCreate,
+  busy,
 }: {
   target: AgentProfile | null;
   match: AgentMatch | null;
@@ -264,16 +331,32 @@ function Recommendation({
   modelReason: string | null;
   overridden: boolean;
   onGo: () => void;
+  onCreate: () => void;
+  busy: boolean;
 }) {
   const model = models.find((entry) => entry.key === modelKey) ?? null;
 
   if (!target) {
     return (
-      <div className="card enter mb-12 p-5">
-        <p className="t-small">
-          Nothing in that matched a desk&apos;s vocabulary. Pick one below — the scorer is a
-          starting point, not a gate.
+      <div className="card enter mb-12 flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
+        <p className="t-small min-w-[16rem] flex-1">
+          No existing desk owns that vocabulary. Build one for it, or pick a desk below — the scorer
+          is a starting point, not a gate.
         </p>
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={busy}
+          className="btn btn-primary shrink-0"
+          data-testid="create-from-recommendation"
+        >
+          {busy ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Plus className="size-4" aria-hidden="true" />
+          )}
+          {busy ? 'Building…' : 'Build this agent'}
+        </button>
       </div>
     );
   }
@@ -290,7 +373,7 @@ function Recommendation({
           style={{ background: target.accentSoft, color: target.accent }}
           aria-hidden="true"
         >
-          <AgentIcon agent={target.id} className="size-5" />
+          <AgentIcon agent={target.id} label={target.name} className="size-5" />
         </span>
 
         <div className="min-w-0 flex-1">
@@ -354,6 +437,7 @@ function AgentTile({
   selected,
   scoring,
   onSelect,
+  onDelete,
 }: {
   profile: AgentProfile;
   match: AgentMatch | null;
@@ -361,72 +445,156 @@ function AgentTile({
   selected: boolean;
   scoring: boolean;
   onSelect: () => void;
+  /** Present only for created agents; the four coded desks cannot be removed. */
+  onDelete?: () => void;
 }) {
+  // Delete sits outside the select button rather than inside it — a button
+  // nested in a button is invalid, and the browser's behaviour when you click
+  // the inner one is not something to rely on.
+  return (
+    <div className="relative">
+      {onDelete ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={`Delete the ${profile.name} agent`}
+          data-testid="delete-agent"
+          className="icon-btn absolute top-3 right-3 z-10 size-8"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        data-testid="agent-tile"
+        data-agent={profile.id}
+        className="card lift flex h-full w-full flex-col items-start p-5 text-left"
+        style={selected ? { borderColor: profile.accent } : undefined}
+      >
+        <div className="mb-3 flex w-full items-center gap-3">
+          <span
+            className="flex size-9 shrink-0 items-center justify-center rounded-[var(--r-md)]"
+            style={{ background: profile.accentSoft, color: profile.accent }}
+            aria-hidden="true"
+          >
+            <AgentIcon agent={profile.id} label={profile.name} className="size-[18px]" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="t-subtitle block truncate">{profile.name}</span>
+            <span className="t-label block truncate">
+              {profile.toolSummaries.length} tools{profile.custom ? ' · created' : ''}
+            </span>
+          </span>
+          {/* Nudged left of the delete button when there is one. */}
+          <span className={onDelete ? 'mr-9' : undefined}>
+            {recommended ? (
+              <Sparkles className="size-4 shrink-0" style={{ color: profile.accent }} />
+            ) : selected ? (
+              <Check className="size-4 shrink-0" style={{ color: profile.accent }} />
+            ) : null}
+          </span>
+        </div>
+
+        <p className="t-small mb-3 flex-1">{profile.tagline}</p>
+
+        {/* The confidence bar only appears once there is a query to be confident
+          about. Rendering it empty would imply a score of zero rather than
+          "nothing asked yet". */}
+        {scoring ? (
+          <div className="w-full">
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span className="mono truncate" style={{ color: 'var(--ink-3)' }}>
+                {match && match.matched.length > 0
+                  ? match.matched.slice(0, 3).join(' · ')
+                  : 'no match'}
+              </span>
+              <span className="mono shrink-0" style={{ color: 'var(--ink-3)' }}>
+                {Math.round((match?.confidence ?? 0) * 100)}%
+              </span>
+            </div>
+            <div
+              className="h-[3px] w-full overflow-hidden rounded-[var(--r-pill)]"
+              style={{ background: 'var(--line)' }}
+              aria-hidden="true"
+            >
+              <div
+                className="h-full rounded-[var(--r-pill)] transition-[width] duration-300"
+                style={{
+                  width: `${Math.round((match?.confidence ?? 0) * 100)}%`,
+                  background: profile.accent,
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <span className="mono truncate" style={{ color: 'var(--ink-3)' }}>
+            {profile.ragSources.join(' · ')}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The tile that turns the typed sentence into a desk.
+ *
+ * It sits in the grid with the existing agents rather than in a separate
+ * section, because "make a new one" is a peer of "use an existing one", not a
+ * settings action buried elsewhere.
+ */
+function CreateTile({
+  description,
+  busy,
+  onCreate,
+}: {
+  description: string;
+  busy: boolean;
+  onCreate: () => void;
+}) {
+  const ready = description.length >= 3;
+
   return (
     <button
       type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      data-testid="agent-tile"
-      data-agent={profile.id}
-      className="card lift flex flex-col items-start p-5 text-left"
-      style={selected ? { borderColor: profile.accent } : undefined}
+      onClick={onCreate}
+      disabled={!ready || busy}
+      data-testid="create-tile"
+      className="lift flex h-full flex-col items-start rounded-[var(--r-lg)] p-5 text-left"
+      style={{
+        border: '1px dashed var(--line-strong)',
+        opacity: ready || busy ? 1 : 0.6,
+        cursor: ready && !busy ? 'pointer' : 'default',
+      }}
     >
       <div className="mb-3 flex w-full items-center gap-3">
         <span
           className="flex size-9 shrink-0 items-center justify-center rounded-[var(--r-md)]"
-          style={{ background: profile.accentSoft, color: profile.accent }}
+          style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
           aria-hidden="true"
         >
-          <AgentIcon agent={profile.id} className="size-[18px]" />
+          {busy ? (
+            <Loader2 className="size-[18px] animate-spin" />
+          ) : (
+            <Plus className="size-[18px]" />
+          )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="t-subtitle block truncate">{profile.name}</span>
-          <span className="t-label block truncate">{profile.toolSummaries.length} tools</span>
+          <span className="t-subtitle block truncate">{busy ? 'Building…' : 'New agent'}</span>
+          <span className="t-label block truncate">remember · recall</span>
         </span>
-        {recommended ? (
-          <Sparkles className="size-4 shrink-0" style={{ color: profile.accent }} />
-        ) : selected ? (
-          <Check className="size-4 shrink-0" style={{ color: profile.accent }} />
-        ) : null}
       </div>
 
-      <p className="t-small mb-3 flex-1">{profile.tagline}</p>
-
-      {/* The confidence bar only appears once there is a query to be confident
-          about. Rendering it empty would imply a score of zero rather than
-          "nothing asked yet". */}
-      {scoring ? (
-        <div className="w-full">
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <span className="mono truncate" style={{ color: 'var(--ink-3)' }}>
-              {match && match.matched.length > 0
-                ? match.matched.slice(0, 3).join(' · ')
-                : 'no match'}
-            </span>
-            <span className="mono shrink-0" style={{ color: 'var(--ink-3)' }}>
-              {Math.round((match?.confidence ?? 0) * 100)}%
-            </span>
-          </div>
-          <div
-            className="h-[3px] w-full overflow-hidden rounded-[var(--r-pill)]"
-            style={{ background: 'var(--line)' }}
-            aria-hidden="true"
-          >
-            <div
-              className="h-full rounded-[var(--r-pill)] transition-[width] duration-300"
-              style={{
-                width: `${Math.round((match?.confidence ?? 0) * 100)}%`,
-                background: profile.accent,
-              }}
-            />
-          </div>
-        </div>
-      ) : (
-        <span className="mono truncate" style={{ color: 'var(--ink-3)' }}>
-          {profile.ragSources.join(' · ')}
-        </span>
-      )}
+      <p className="t-small flex-1">
+        {busy
+          ? 'Writing its prompt, picking its vocabulary and giving it its own memory.'
+          : ready
+            ? `Build a desk for “${description.length > 64 ? `${description.slice(0, 63)}…` : description}”.`
+            : 'Describe a domain above and Cannon will write the agent for it — its own prompt, its own memory, its own retrieval scope.'}
+      </p>
     </button>
   );
 }

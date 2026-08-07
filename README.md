@@ -1,6 +1,6 @@
 # Cannon
 
-A personal multi-agent assistant where each domain gets a dedicated specialist — its own persona, its own system prompt, its own tools and its own retrieval scope — instead of one generalist chatbot wearing hats.
+A personal multi-agent assistant where each domain gets a dedicated specialist — its own persona, its own system prompt, its own tools and its own retrieval scope — instead of one generalist chatbot wearing hats. Four desks ship with it. The rest you type into existence.
 
 Built to be used daily, not demoed once. The fitness desk holds real training data, the work desk a real task board, the finance desk real spend, the learning desk a real reading queue. The portfolio artifact is a by-product of a tool that had to exist anyway.
 
@@ -19,13 +19,16 @@ The fitness agent cannot read work documents even by accident. Retrieval takes t
 **3. Every external dependency has a working fallback.**
 No provider key, no database? The app still boots, builds, passes its whole test suite and serves a fully working demo. Inference falls back to a scripted model that implements the real provider interface, embeddings fall back to a deterministic lexical embedder, storage falls back to a process-local store. This is why CI can run end-to-end tests with zero secrets — the tests exercise the production code path, not a mocked-out shortcut.
 
-**4. Dispatch is a recommendation, not a router.**
+**4. The roster is open — you type a domain and get an agent for it.**
+Describe something no desk covers and Cannon writes one: the model produces the persona, the system prompt, the routing vocabulary and the starter prompts; the server decides the slug, the accent and the uniqueness, because those become a URL and a primary key and "trust the model to emit a valid slug" is not validation. The new desk is real, not a skin — it gets its own row, its own accent, its own retrieval namespace, and two tools (`remember`, `recall`) that write to the database and embed into a scope only it can read. It appears in the rail, joins the routing vocabulary, and can be deleted, which takes its records, embeddings and transcript with it. With no provider key the persona comes from a deterministic generator instead: worse prose, same working agent.
+
+**5. Dispatch is a recommendation, not a router.**
 The front door takes the request in plain words, scores it against every desk's own vocabulary, and picks a model for the _shape_ of the request — widest context for a wall of pasted text, strongest reasoner for a judgement call, fastest for a short capture. Both choices are shown with their reasons and both can be overruled before anything runs. Deliberately a deterministic scorer rather than an LLM classifier: routing sits in front of every request, so a model round-trip there taxes all of them, and a wrong guess sends work to an agent whose tools cannot serve it. It is instant, free, explainable in the UI and unit-tested.
 
-**5. The Inspector.**
+**6. The Inspector.**
 A docked panel showing the tool signatures in scope, which provider actually answered, whether a fallback fired, and the exact chunks retrieval pulled with their similarity scores. The system prompt is deliberately _not_ in it — `toProfile` strips it at the server/client boundary, and an e2e test asserts it never appears in the page or the RSC payload.
 
-**6. Tool results are data, not pasted JSON.**
+**7. Tool results are data, not pasted JSON.**
 Every tool returns a tagged, typed result that the chat surface renders as a real card: an RPE meter and a next-load recommendation for a logged set, a volume sparkline and a trend verdict for a progress query, a filterable board with a slipping banner, a category breakdown with budget usage, a reading queue that flags what has gone stale.
 
 ---
@@ -40,13 +43,13 @@ Every tool returns a tagged, typed result that the chat surface renders as a rea
           Agent registry                       UI shell
    dispatch recommends, user commits    dispatch · chat · inspector
                  │
-   ┌────────┬────┴─────┬──────────┐
-   │        │          │          │
- Fitness   Work     Finance   Learning
- own prompt, own tools, own retrieval scope
- 3 tools   4 tools   2 tools   3 tools
-   │        │          │          │
-   └────────┴────┬─────┴──────────┘
+   ┌────────┬────┴─────┬──────────┬─────────────┐
+   │        │          │          │             │
+ Fitness   Work     Finance   Learning     …anything you type
+ own prompt, own tools, own retrieval scope    generated persona
+ 3 tools   4 tools   2 tools   3 tools        remember · recall
+   │        │          │          │             │
+   └────────┴────┬─────┴──────────┴─────────────┘
                  │
                  ▼
              Shared infra
@@ -68,7 +71,9 @@ No login: this is a single-user tool run for one person, so there is no session 
 | **Finance**  | Plain and unsentimental. Leads with the number, then the observation. Not an adviser — flags and defers.    | `log_expense`, `get_spending_summary`                                | expense log · budget rules             | `expenses`                 |
 | **Learning** | A sharp study partner. Asks for the takeaway, because the takeaway is the point rather than the completion. | `add_reading`, `list_reading`, `finish_reading`                      | reading list · takeaways · study rules | `reading`                  |
 
-Every number is computed in a pure, unit-tested module before the model sees it — overload steps, volume trends and macro splits; what counts as "slipping"; category shares, daily averages and budget usage; what counts as a stale queue item. The model narrates figures it is handed. It does not invent them.
+A created desk gets the generic pair rather than bespoke tools, and that is the honest ceiling: nobody wrote the maths for a domain that did not exist five seconds ago. What it does get is a real loop — `remember` writes a titled entry and embeds it, `recall` searches only that agent's entries, and the next question can find what the last one stored.
+
+Every built-in desk's numbers are computed in a pure, unit-tested module before the model sees them — overload steps, volume trends and macro splits; what counts as "slipping"; category shares, daily averages and budget usage; what counts as a stale queue item. The model narrates figures it is handed. It does not invent them.
 
 ---
 
@@ -109,7 +114,7 @@ npm run test:e2e     # Playwright against a production build
 
 1. Import the repository into Vercel. No required environment variables — it deploys and works immediately.
 2. Add `GROQ_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` when you want real inference instead of the simulated model.
-3. Add `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` when you want durable storage instead of the in-memory store. Apply `supabase/schema.sql` first. If your project predates the Finance and Learning desks, run `supabase/migrations/001_finance_learning.sql` — it adds the two tables and widens the `agent` CHECK constraint that would otherwise reject their first write.
+3. Add `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` when you want durable storage instead of the in-memory store. Apply `supabase/schema.sql` first. On an existing project, run the migrations in order: `001_finance_learning.sql` adds the Finance and Learning tables, `002_custom_agents.sql` adds `agents` and `records` and drops the `agent` CHECK constraint that enumerated the desks — which cannot survive a roster you extend by typing.
 
 There is no passcode or allowlist to configure — anyone with the URL can use the deployment.
 
@@ -136,14 +141,17 @@ Verified at 375px, 768px, 1024px, 1440px and 2200px. The rail collapses to a flo
 ## Testing
 
 ```
-126 unit tests  tools and domain maths for all four desks, dispatch scoring
-                and model recommendation, catalog key validation, RAG scoping,
-                chunking, the fallback chain's four failure modes, store
-                filters and ranking
-24 e2e specs    run twice (desktop + mobile): every desk's full tool loop,
-                dispatch routing and hand-off, transcript isolation, the
-                inspector, the system prompt's absence from the payload, the
-                responsive swap, theme persistence, horizontal overflow
+154 unit tests  tools and domain maths for all four desks, agent generation
+                and slug validation, the created-agent tool surface and its
+                scoping, dispatch scoring and model recommendation, catalog
+                key validation, RAG scoping, chunking, the fallback chain's
+                four failure modes, store filters and ranking
+30 e2e specs    run twice (desktop + mobile): every desk's full tool loop,
+                creating an agent from a sentence and watching it remember
+                and recall, deleting one, dispatch routing and hand-off,
+                transcript isolation, the inspector, the system prompt's
+                absence from the payload, the responsive swap, theme
+                persistence, horizontal overflow
 ```
 
 The e2e suite runs a real production build with no provider keys, so every layer except token generation is the production path.
@@ -158,4 +166,6 @@ The e2e suite runs a real production build with no provider keys, so every layer
 - **Without Supabase**, the memory store lives for the life of a warm serverless instance. Deliberate, and stated in the UI — the header pill reads `memory` rather than `supabase`.
 - **Dispatch recommends, it does not route.** The scorer never sends a request anywhere on its own — it ranks and the user commits. That is the intended design, not a missing feature: a classifier that guesses wrong at 11pm is worse than a tab. It is also keyword scoring, so it will miss a request phrased entirely outside a desk's vocabulary; the whole field stays on screen precisely so that miss costs one click rather than a wrong answer.
 - **The model recommendation reads shape, not content.** Length and a handful of judgement words decide it. It is a sensible default and an explainable one, not a quality ranking — a short question that happens to need the strongest reasoner will still be handed the fastest model until you overrule it.
-- **Four desks is the current ceiling of the mobile tab bar.** A fifth needs a different navigation model, not another tab.
+- **A created agent gets generic tools, not bespoke ones.** `remember` and `recall` are a real loop, but they are not `get_spending_summary`. A domain that needs actual maths needs a coded desk; what you can create at runtime is a specialist that captures and recalls, not one that computes.
+- **The mobile tab bar shows the first few desks.** Create enough agents and the rail is the way to reach the rest; a proper overflow model is a real gap, not a solved one.
+- **Deleting an agent is immediate and unconfirmed.** It takes that desk's records, embeddings and transcript with it, which is correct — leaving them would mean a later agent created under the same slug inherits a stranger's memory — but there is no undo.

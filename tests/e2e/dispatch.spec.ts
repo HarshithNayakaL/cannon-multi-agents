@@ -50,6 +50,11 @@ test('carries the question over to the desk and sends it on arrival', async ({ p
   await expect(call.first()).toHaveAttribute('data-tool', 'list_tasks');
 });
 
+test('offers to build a desk when nothing owns the vocabulary', async ({ page }) => {
+  await ask(page, 'zzzz qqqq vvvv');
+  await expect(page.getByTestId('create-from-recommendation')).toBeVisible();
+});
+
 test('states plainly that inference is simulated rather than listing models it cannot reach', async ({
   page,
 }) => {

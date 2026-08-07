@@ -22,10 +22,6 @@ function emptyTrace(agent: AgentId, query: string): RetrievalTrace {
 
 export async function POST(request: Request, { params }: { params: Promise<{ agent: string }> }) {
   const { agent: agentParam } = await params;
-  const agent = resolveAgent(agentParam);
-  if (!agent) {
-    return NextResponse.json({ error: `Unknown agent "${agentParam}".` }, { status: 404 });
-  }
 
   let messages: UIMessage[];
   let preferredModel: string | undefined;
@@ -44,20 +40,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
 
   const query = lastUserText(messages);
 
-  // Retrieval is a supporting lookup, not the thing the user asked for — a
-  // Supabase hiccup here must degrade to "no context" rather than take the
-  // whole chat request down with it.
+  // The store is resolved before the agent, not after: a created agent lives
+  // in the database, so there is no way to name the agent in an error message
+  // until the store has answered.
   let store: CannonStore;
-  let trace: RetrievalTrace;
   try {
     store = await getStore();
   } catch (error) {
-    console.error(`[cannon] ${agent.id} store unavailable`, error);
+    console.error(`[cannon] store unavailable for "${agentParam}"`, error);
     return NextResponse.json(
-      { error: `The ${agent.name} agent's data store is unavailable right now.` },
+      { error: 'The data store is unavailable right now.' },
       { status: 503 },
     );
   }
+
+  const agent = await resolveAgent(agentParam, store);
+  if (!agent) {
+    return NextResponse.json({ error: `Unknown agent "${agentParam}".` }, { status: 404 });
+  }
+
+  // Retrieval is a supporting lookup, not the thing the user asked for — a
+  // Supabase hiccup here must degrade to "no context" rather than take the
+  // whole chat request down with it.
+  let trace: RetrievalTrace;
   try {
     // Retrieval is scoped to this agent inside the store query itself, so
     // the fitness agent can never see work documents even by accident.
@@ -89,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
         .toISOString()
         .slice(0, 10)}.`,
       messages: await convertToModelMessages(messages),
-      tools: agent.buildTools(),
+      tools: agent.buildTools(store),
       stopWhen: stepCountIs(MAX_STEPS),
       onError: ({ error }) => {
         console.error(`[cannon] ${agent.id} stream error`, error);

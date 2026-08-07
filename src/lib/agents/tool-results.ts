@@ -1,4 +1,4 @@
-import type { Expense, ReadingItem, Task, Workout } from '@/lib/db/types';
+import type { AgentRecord, Expense, ReadingItem, Task, Workout } from '@/lib/db/types';
 
 /**
  * Tool outputs are typed and tagged so the chat surface can render a real
@@ -96,6 +96,16 @@ export type ReadingUpdatedResult = {
   requestedId: string;
 };
 
+export type RecordAddedResult = { kind: 'record-added'; record: AgentRecord };
+
+export type RecordListResult = {
+  kind: 'record-list';
+  filter: string;
+  records: AgentRecord[];
+  /** Tag histogram, so a created agent's data still has a shape to show. */
+  tags: { tag: string; count: number }[];
+};
+
 export type CannonToolResult =
   | WorkoutLoggedResult
   | ProgressSummaryResult
@@ -108,7 +118,9 @@ export type CannonToolResult =
   | SpendingSummaryResult
   | ReadingAddedResult
   | ReadingListResult
-  | ReadingUpdatedResult;
+  | ReadingUpdatedResult
+  | RecordAddedResult
+  | RecordListResult;
 
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
 export type MacroGoal = 'cut' | 'maintain' | 'bulk';

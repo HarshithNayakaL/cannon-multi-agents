@@ -1,7 +1,9 @@
 import { cosineSimilarity } from 'ai';
 
-import type { AgentId } from '@/lib/agents/types';
+import type { AgentId, CustomAgent, CustomAgentInput } from '@/lib/agents/types';
 import type {
+  AgentRecord,
+  AgentRecordInput,
   CannonStore,
   Expense,
   ExpenseFilter,
@@ -11,6 +13,7 @@ import type {
   ReadingInput,
   ReadingItem,
   ReadingStatus,
+  RecordFilter,
   ScoredDocument,
   StoredMessage,
   Task,
@@ -37,6 +40,8 @@ type Tables = {
   notes: Note[];
   expenses: Expense[];
   reading: ReadingItem[];
+  agents: CustomAgent[];
+  records: AgentRecord[];
   documents: VectorDocument[];
   messages: StoredMessage[];
 };
@@ -51,12 +56,17 @@ type Tables = {
 export class MemoryStore implements CannonStore {
   readonly kind = 'memory' as const;
 
-  private readonly tables: Tables = {
+  // Not `readonly`: deleting an agent replaces whole arrays rather than
+  // splicing them in place, so a concurrent read never sees a half-emptied
+  // table.
+  private tables: Tables = {
     workouts: [],
     tasks: [],
     notes: [],
     expenses: [],
     reading: [],
+    agents: [],
+    records: [],
     documents: [],
     messages: [],
   };
@@ -167,6 +177,55 @@ export class MemoryStore implements CannonStore {
     if (takeaway !== undefined) item.takeaway = takeaway;
     item.updatedAt = new Date().toISOString();
     return item;
+  }
+
+  async createAgent(input: CustomAgentInput): Promise<CustomAgent> {
+    const agent: CustomAgent = { ...input, createdAt: new Date().toISOString() };
+    const existing = this.tables.agents.findIndex((candidate) => candidate.id === agent.id);
+    if (existing >= 0) this.tables.agents[existing] = agent;
+    else this.tables.agents.push(agent);
+    return agent;
+  }
+
+  async listAgents(): Promise<CustomAgent[]> {
+    return [...this.tables.agents].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async findAgent(agentId: AgentId): Promise<CustomAgent | null> {
+    return this.tables.agents.find((agent) => agent.id === agentId) ?? null;
+  }
+
+  async deleteAgent(agentId: AgentId): Promise<boolean> {
+    const before = this.tables.agents.length;
+    this.tables.agents = this.tables.agents.filter((agent) => agent.id !== agentId);
+    if (this.tables.agents.length === before) return false;
+
+    // Deleting the agent has to take its data with it. Leaving records and
+    // embeddings behind means a later agent created under the same slug
+    // inherits a stranger's memory.
+    this.tables.records = this.tables.records.filter((record) => record.agent !== agentId);
+    this.tables.documents = this.tables.documents.filter((doc) => doc.agent !== agentId);
+    this.tables.messages = this.tables.messages.filter((message) => message.agent !== agentId);
+    return true;
+  }
+
+  async addRecord(input: AgentRecordInput): Promise<AgentRecord> {
+    const record: AgentRecord = { ...input, id: id('rec'), createdAt: new Date().toISOString() };
+    this.tables.records.push(record);
+    return record;
+  }
+
+  async listRecords(agent: AgentId, filter: RecordFilter = {}): Promise<AgentRecord[]> {
+    const query = filter.query?.trim().toLowerCase();
+    return this.tables.records
+      .filter((record) => {
+        if (record.agent !== agent) return false;
+        if (filter.tag && !record.tags.includes(filter.tag)) return false;
+        if (query && !`${record.title} ${record.body}`.toLowerCase().includes(query)) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, filter.limit ?? 50);
   }
 
   async upsertDocuments(documents: VectorDocumentInput[]): Promise<number> {

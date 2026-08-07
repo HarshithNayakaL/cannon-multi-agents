@@ -159,7 +159,7 @@ export function AgentWorkspace({
               style={{ background: profile.accentSoft, color: profile.accent }}
               aria-hidden="true"
             >
-              <AgentIcon agent={profile.id} className="size-[18px]" />
+              <AgentIcon agent={profile.id} label={profile.name} className="size-[18px]" />
             </span>
 
             {/* Short name on a phone, full title once there is room. At 390px

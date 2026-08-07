@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { rankAgents, recommendAgent, recommendModel, tokenize } from '@/lib/agents/dispatch';
-import { agents, toProfile } from '@/lib/agents/registry';
+import { builtinAgents, toProfile } from '@/lib/agents/registry';
 import { MODELS, findModel, formatContext, parseModelKey } from '@/lib/ai/catalog';
 
-const PROFILES = agents.map(toProfile);
+const PROFILES = builtinAgents.map(toProfile);
 
 describe('routing', () => {
   it('sends each desk its own vocabulary', () => {

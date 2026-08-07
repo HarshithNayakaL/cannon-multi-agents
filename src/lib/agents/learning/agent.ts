@@ -2,9 +2,9 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import type { AgentDefinition } from '@/lib/agents/types';
+import type { CannonStore } from '@/lib/db/types';
 import { READING_KINDS, summarizeReading } from '@/lib/agents/learning/logic';
 import type { ReadingAddedResult, ReadingUpdatedResult } from '@/lib/agents/tool-results';
-import { getStore } from '@/lib/db';
 import { ingest } from '@/lib/rag/retrieve';
 
 const SYSTEM_PROMPT = `You are the Learning Agent inside Cannon, Harshith's personal multi-agent assistant.
@@ -29,7 +29,7 @@ takeaway is the point, not the completion. Terse. No reading-list moralising.`;
 
 const STATUSES = ['queued', 'reading', 'finished'] as const;
 
-function buildTools(): ToolSet {
+function buildTools(store: CannonStore): ToolSet {
   return {
     add_reading: tool({
       description: 'Add something to the reading queue, or mark it as being read right now.',
@@ -40,7 +40,6 @@ function buildTools(): ToolSet {
         topic: z.string().nullable().default(null),
       }),
       execute: async ({ title, kind, status, topic }): Promise<ReadingAddedResult> => {
-        const store = await getStore();
         const item = await store.addReading({ title, kind, status, topic, takeaway: null });
         await ingest(store, 'learning', `${kind}: ${title}${topic ? ` (${topic})` : ''}`, {
           source: 'reading-list',
@@ -57,7 +56,6 @@ function buildTools(): ToolSet {
         topic: z.string().nullable().default(null),
       }),
       execute: async ({ status, topic }) => {
-        const store = await getStore();
         const items = await store.listReading({
           status: status ?? undefined,
           topic: topic ?? undefined,
@@ -81,7 +79,6 @@ function buildTools(): ToolSet {
           .describe("The one thing worth remembering, in the user's own words."),
       }),
       execute: async ({ id, takeaway }): Promise<ReadingUpdatedResult> => {
-        const store = await getStore();
         const item = await store.updateReadingStatus(id, 'finished', takeaway);
         if (item && takeaway) {
           // The takeaway is the durable artefact — it is what retrieval needs.
@@ -145,5 +142,6 @@ export const learningAgent: AgentDefinition = {
     'lecture',
     'watched',
   ],
+  custom: false,
   buildTools,
 };
