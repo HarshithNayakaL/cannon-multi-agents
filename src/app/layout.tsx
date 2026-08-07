@@ -35,7 +35,7 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Cannon — personal multi-agent assistant',
   description:
-    'A bureau of specialist agents. Each domain gets its own persona, tools and retrieval scope, on one shared production stack.',
+    'A multi-agent assistant where each domain gets its own persona, tools and retrieval scope, on one shared production stack.',
   applicationName: 'Cannon',
   authors: [{ name: 'Harshith' }],
   openGraph: {

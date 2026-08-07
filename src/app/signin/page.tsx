@@ -47,7 +47,7 @@ export default async function SignInPage({
             <span className="t-subtitle">Cannon</span>
           </div>
 
-          <h1 className="t-display mb-6 max-w-[14ch]">A bureau, not a chatbot.</h1>
+          <h1 className="t-display mb-6 max-w-[14ch]">Specialists, not a chatbot.</h1>
 
           <p className="t-body mb-10 max-w-[46ch]" style={{ color: 'var(--ink-2)' }}>
             Every domain gets a dedicated specialist — its own persona, its own tools, its own
