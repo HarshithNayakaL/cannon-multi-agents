@@ -39,6 +39,33 @@ describe('readEnv', () => {
       'https://x.supabase.co',
     );
   });
+
+  it('reduces a hosted Supabase URL to its origin', () => {
+    // The dashboard shows these paths, and they get pasted verbatim; the
+    // client appends its own `/rest/v1/...` and the gateway then rejects it.
+    for (const pasted of [
+      'https://x.supabase.co/rest/v1',
+      'https://x.supabase.co/rest/v1/',
+      'https://x.supabase.co/auth/v1',
+      'https://x.supabase.co/graphql/v1',
+      'https://x.supabase.co/anything/else',
+    ]) {
+      expect(readEnv({ SUPABASE_URL: pasted }).supabaseUrl).toBe('https://x.supabase.co');
+    }
+  });
+
+  it('keeps a self-hosted base path but trims the API suffix', () => {
+    expect(readEnv({ SUPABASE_URL: 'https://db.example.com/supabase/rest/v1' }).supabaseUrl).toBe(
+      'https://db.example.com/supabase',
+    );
+    expect(readEnv({ SUPABASE_URL: 'https://db.example.com/supabase' }).supabaseUrl).toBe(
+      'https://db.example.com/supabase',
+    );
+  });
+
+  it('passes an unparseable value through rather than throwing', () => {
+    expect(readEnv({ SUPABASE_URL: 'not a url' }).supabaseUrl).toBe('not a url');
+  });
 });
 
 describe('capability detection', () => {

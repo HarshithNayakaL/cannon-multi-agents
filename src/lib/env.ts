@@ -36,20 +36,41 @@ function str(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** API paths Supabase's own dashboard shows, which people paste by mistake. */
+const SUPABASE_API_SUFFIX = /\/(rest|auth|storage|realtime|graphql|functions)(\/v\d+)?\/?$/i;
+
 /**
- * Supabase's client joins this with `/rest/v1/...`, so a pasted trailing slash
- * produces a double slash and the gateway rejects the whole request with
- * "Invalid path specified in request URL". Copying the URL with a trailing
- * slash is the single easiest mistake to make in the setup flow, so it is
- * normalised here rather than left as a footgun.
+ * Supabase's client appends `/rest/v1/...` to whatever it is given, so the
+ * value has to be the bare project origin. Anything extra — a trailing slash,
+ * or a pasted `/rest/v1` from the dashboard — produces a malformed path and
+ * every request fails with an opaque "Invalid path specified in request URL".
+ *
+ * Hosted projects can be reduced to their origin outright, since a
+ * `*.supabase.co` project never lives under a path. Self-hosted deployments
+ * legitimately can, so those only get the trailing slash and a known API
+ * suffix trimmed.
  */
+export function normalizeSupabaseUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, '');
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+
+  if (/(^|\.)supabase\.(co|in)$/i.test(parsed.hostname)) return parsed.origin;
+
+  return `${parsed.origin}${parsed.pathname.replace(SUPABASE_API_SUFFIX, '').replace(/\/+$/, '')}`;
+}
+
 function baseUrl(
   source: NodeJS.ProcessEnv | Record<string, string | undefined>,
   ...keys: string[]
 ): string | undefined {
   for (const key of keys) {
     const value = str(source, key);
-    if (value !== undefined) return value.replace(/\/+$/, '');
+    if (value !== undefined) return normalizeSupabaseUrl(value);
   }
   return undefined;
 }
