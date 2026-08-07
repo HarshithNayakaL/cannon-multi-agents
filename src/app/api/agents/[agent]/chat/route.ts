@@ -5,6 +5,7 @@ import { lastUserText, type CannonMetadata, type CannonUIMessage } from '@/lib/a
 import { resolveAgent } from '@/lib/agents/registry';
 import { resolveModel } from '@/lib/ai/provider';
 import type { FallbackEvent } from '@/lib/ai/fallback';
+import { createLeakGuardTransform } from '@/lib/ai/leak-guard';
 import { getStore } from '@/lib/db';
 import { formatContext, retrieve, type RetrievalTrace } from '@/lib/rag/retrieve';
 import type { CannonStore } from '@/lib/db/types';
@@ -15,6 +16,17 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 const MAX_STEPS = 5;
+
+/**
+ * Some Llama models on Groq fall back to writing a tool call as literal
+ * text — `<function=name>{...}</function>` — instead of a real structured
+ * one, particularly on a later step of a multi-step turn. This one line
+ * cannot stop that on its own (it is model-side behaviour), but it lowers
+ * how often it happens; `createLeakGuardTransform` below is what actually
+ * guarantees the leak never reaches the user or the transcript.
+ */
+const ANTI_LEAK_CLAUSE =
+  'If you need a tool, call it through the tool-calling mechanism only. Never write a tool call as text, in any format — no `<function=...>`, no JSON block standing in for one. If you cannot call a tool, say so instead of simulating the call.';
 
 function emptyTrace(agent: AgentId, query: string): RetrievalTrace {
   return { agent, query, backend: 'local', hits: [] };
@@ -90,12 +102,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   try {
     result = streamText({
       model,
-      system: `${agent.systemPrompt}\n\n${formatContext(trace)}\n\nToday is ${new Date()
+      system: `${agent.systemPrompt}\n\n${ANTI_LEAK_CLAUSE}\n\n${formatContext(trace)}\n\nToday is ${new Date()
         .toISOString()
         .slice(0, 10)}.`,
       messages: await convertToModelMessages(messages),
       tools: agent.buildTools(store),
       stopWhen: stepCountIs(MAX_STEPS),
+      experimental_transform: createLeakGuardTransform(),
       onError: ({ error }) => {
         console.error(`[cannon] ${agent.id} stream error`, error);
       },
