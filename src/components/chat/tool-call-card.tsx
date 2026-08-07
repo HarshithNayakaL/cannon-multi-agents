@@ -3,7 +3,13 @@
 import { getToolName, type DynamicToolUIPart, type ToolUIPart } from 'ai';
 import { useState } from 'react';
 
+import { ExpenseLoggedCard, SpendingSummaryCard } from '@/components/data/finance-cards';
 import { MacroCard, ProgressCard, WorkoutLoggedCard } from '@/components/data/fitness-cards';
+import {
+  ReadingAddedCard,
+  ReadingListCard,
+  ReadingUpdatedCard,
+} from '@/components/data/learning-cards';
 import {
   NotesSummaryCard,
   TaskCreatedCard,
@@ -122,5 +128,15 @@ function ToolResultView({ output }: { output: unknown }) {
       return <TaskUpdatedCard result={result} />;
     case 'notes-summary':
       return <NotesSummaryCard result={result} />;
+    case 'expense-logged':
+      return <ExpenseLoggedCard result={result} />;
+    case 'spending-summary':
+      return <SpendingSummaryCard result={result} />;
+    case 'reading-added':
+      return <ReadingAddedCard result={result} />;
+    case 'reading-list':
+      return <ReadingListCard result={result} />;
+    case 'reading-updated':
+      return <ReadingUpdatedCard result={result} />;
   }
 }

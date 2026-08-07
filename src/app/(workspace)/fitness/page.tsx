@@ -1,18 +1,11 @@
 import type { Metadata } from 'next';
 
-import { AgentWorkspace } from '@/components/chat/agent-workspace';
-import { getAgent, toProfile } from '@/lib/agents/registry';
-import { describeCapabilities } from '@/lib/env';
+import { AgentPage, type PageSearchParams } from '@/components/chat/agent-page';
 
 export const metadata: Metadata = {
   title: 'Fitness Agent — Cannon',
 };
 
-export default function FitnessPage() {
-  return (
-    <AgentWorkspace
-      profile={toProfile(getAgent('fitness'))}
-      capabilities={describeCapabilities()}
-    />
-  );
+export default function FitnessRoute({ searchParams }: { searchParams: PageSearchParams }) {
+  return <AgentPage agent="fitness" searchParams={searchParams} />;
 }

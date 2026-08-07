@@ -57,11 +57,48 @@ create table if not exists notes (
 
 create index if not exists notes_date_idx on notes (date desc);
 
+-- ── Finance ─────────────────────────────────────────────────────────────────
+
+-- `numeric`, never a float. Money in a float column accumulates rounding error
+-- across a month of sums, and the totals are the whole point of this desk.
+create table if not exists expenses (
+  id         uuid primary key default gen_random_uuid(),
+  date       date not null,
+  merchant   text not null,
+  category   text not null default 'other'
+             check (category in ('food', 'transport', 'housing', 'health',
+                                 'subscriptions', 'shopping', 'other')),
+  amount     numeric(12, 2) not null check (amount >= 0),
+  note       text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists expenses_date_idx on expenses (date desc);
+create index if not exists expenses_category_idx on expenses (category);
+
+-- ── Learning ────────────────────────────────────────────────────────────────
+
+create table if not exists reading (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null,
+  kind       text not null default 'article'
+             check (kind in ('book', 'paper', 'article', 'course', 'video')),
+  status     text not null default 'queued'
+             check (status in ('queued', 'reading', 'finished')),
+  topic      text,
+  takeaway   text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists reading_status_idx on reading (status);
+create index if not exists reading_updated_idx on reading (updated_at desc);
+
 -- ── Shared: transcripts and the vector store ────────────────────────────────
 
 create table if not exists messages (
   id         uuid primary key default gen_random_uuid(),
-  agent      text not null check (agent in ('fitness', 'work')),
+  agent      text not null check (agent in ('fitness', 'work', 'finance', 'learning')),
   role       text not null check (role in ('user', 'assistant', 'system')),
   parts      jsonb not null,
   created_at timestamptz not null default now()
@@ -74,7 +111,7 @@ create index if not exists messages_agent_idx on messages (agent, created_at des
 -- so both backends write into this column without a migration.
 create table if not exists documents (
   id         uuid primary key default gen_random_uuid(),
-  agent      text not null check (agent in ('fitness', 'work')),
+  agent      text not null check (agent in ('fitness', 'work', 'finance', 'learning')),
   content    text not null,
   embedding  vector(768) not null,
   metadata   jsonb not null default '{}'::jsonb,
@@ -127,6 +164,8 @@ alter table workouts     enable row level security;
 alter table body_metrics enable row level security;
 alter table tasks        enable row level security;
 alter table notes        enable row level security;
+alter table expenses     enable row level security;
+alter table reading      enable row level security;
 alter table messages     enable row level security;
 alter table documents    enable row level security;
 

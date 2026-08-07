@@ -10,15 +10,12 @@
    ========================================================================= */
 
 @theme {
-  /* SF Pro first, so Apple hardware renders the typeface this system was
-     drawn against. Inter is the cross-platform stand-in — near-identical
-     metrics — so it never degrades to a browser default anywhere else.
-     JetBrains Mono is reserved for values a machine produced. */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-inter), 'Segoe UI', sans-serif;
-  --font-display:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', var(--font-inter-tight), var(--font-inter),
-    'Segoe UI', sans-serif;
+  /* Poppins across the whole interface, display and prose alike. One family
+     for both jobs is deliberate: hierarchy here is carried by size, weight
+     and colour, which is enough, and a second family would only compete with
+     it. JetBrains Mono stays reserved for values a machine produced. */
+  --font-sans: var(--font-poppins), 'Segoe UI', system-ui, sans-serif;
+  --font-display: var(--font-poppins), 'Segoe UI', system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --breakpoint-3xl: 120rem;
@@ -34,9 +31,14 @@
   --bg-raise: #1d2027;
   --bg-sunken: #0f1114;
 
-  /* Materials — translucent surfaces that sit over content. */
-  --material: rgba(30, 33, 40, 0.72);
-  --material-thick: rgba(30, 33, 40, 0.9);
+  /* Materials — translucent surfaces that sit over content.
+     0.9, not 0.72: the tab bar and composer sit permanently over a scrolling
+     column of text, and at 0.72 a heading passing underneath stayed legible
+     straight through the bar. Blur alone does not fix that — it smears the
+     text without lowering its contrast. Depth is not worth a nav bar you can
+     read the page through. */
+  --material: rgba(24, 27, 33, 0.9);
+  --material-thick: rgba(24, 27, 33, 0.97);
   --highlight: rgba(255, 255, 255, 0.07);
 
   --line: rgba(255, 255, 255, 0.07);
@@ -92,8 +94,8 @@
   --bg-raise: #f0f0f3;
   --bg-sunken: #fafafc;
 
-  --material: rgba(255, 255, 255, 0.76);
-  --material-thick: rgba(255, 255, 255, 0.94);
+  --material: rgba(255, 255, 255, 0.92);
+  --material-thick: rgba(255, 255, 255, 0.98);
   --highlight: rgba(255, 255, 255, 0.9);
 
   --line: rgba(9, 11, 16, 0.08);
@@ -119,13 +121,18 @@ body {
   height: 100%;
 }
 
+/* 16px, not 15px. Poppins has a markedly smaller x-height than Inter — the
+   letters occupy less of the em box — so it reads a size down at identical
+   px. Tracking is near-neutral for the same reason a grotesque wants it
+   negative: the geometric forms are already wide, and pulling them tighter
+   collides the round bowls. */
 body {
   background: var(--bg-base);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.5;
-  letter-spacing: -0.011em;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
@@ -148,50 +155,57 @@ body {
    and the element would never actually be fixed). */
 @layer components {
   /* =========================================================================
-     Type — fluid, tightly tracked at display sizes, per Apple's scale
+     Type — fluid, and tracked for Poppins rather than for a grotesque
+
+     Tracking runs the opposite direction to the usual advice here. A
+     geometric sans is already wide, so display sizes only need a light pull
+     (-0.02em, not -0.032em), and small sizes need a *positive* nudge: at
+     12px Poppins' circular bowls close up and `label` reads as a smudge
+     without a little air between the letters.
      ========================================================================= */
 
   .t-display {
     font-family: var(--font-display);
-    font-size: clamp(2.5rem, 4.5vw + 1rem, 4rem);
+    font-size: clamp(2.25rem, 4.2vw + 1rem, 3.75rem);
     font-weight: 600;
-    line-height: 1.05;
-    letter-spacing: -0.032em;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
   }
 
   .t-title {
     font-family: var(--font-display);
-    font-size: clamp(1.5rem, 1.2vw + 1rem, 1.75rem);
+    font-size: clamp(1.375rem, 1.1vw + 1rem, 1.625rem);
     font-weight: 600;
-    line-height: 1.12;
-    letter-spacing: -0.026em;
+    line-height: 1.2;
+    letter-spacing: -0.016em;
   }
 
   .t-subtitle {
     font-family: var(--font-display);
     font-size: 1.0625rem;
     font-weight: 600;
-    line-height: 1.3;
-    letter-spacing: -0.018em;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
   }
 
   .t-body {
     font-size: 1rem;
-    line-height: 1.6;
-    letter-spacing: -0.011em;
+    line-height: 1.65;
+    letter-spacing: -0.003em;
   }
 
   .t-small {
     font-size: 0.875rem;
-    line-height: 1.55;
+    line-height: 1.6;
+    letter-spacing: 0;
     color: var(--ink-2);
   }
 
   .t-label {
     font-size: 0.75rem;
     font-weight: 500;
-    line-height: 1.35;
-    letter-spacing: -0.004em;
+    line-height: 1.4;
+    letter-spacing: 0.005em;
     color: var(--ink-3);
   }
 
@@ -203,12 +217,14 @@ body {
     letter-spacing: -0.01em;
   }
 
-  /* Numeric readouts — the one place scale is allowed to shout. */
+  /* Numeric readouts — the one place scale is allowed to shout. Poppins'
+     figures are lining and near-monospaced by construction, so they hold a
+     column well; they just need the tracking left alone. */
   .readout {
     font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.018em;
   }
 
   /* =========================================================================

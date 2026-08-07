@@ -1,9 +1,16 @@
 import type { LanguageModelV4Prompt } from '@ai-sdk/provider';
 import { describe, expect, it } from 'vitest';
 
-import { agents, getAgent, resolveAgent, toProfile } from '@/lib/agents/registry';
+import { agents, resolveAgent, toProfile } from '@/lib/agents/registry';
 import { AGENT_IDS, isAgentId } from '@/lib/agents/types';
-import { fitnessIntent, lastUserText, planStep, workIntent } from '@/lib/ai/demo-model';
+import {
+  financeIntent,
+  fitnessIntent,
+  lastUserText,
+  learningIntent,
+  planStep,
+  workIntent,
+} from '@/lib/ai/demo-model';
 
 describe('registry', () => {
   it('exposes exactly the v1 agents', () => {
@@ -12,15 +19,22 @@ describe('registry', () => {
 
   it('resolves known ids and refuses unknown ones instead of defaulting', () => {
     expect(resolveAgent('fitness')?.id).toBe('fitness');
-    expect(resolveAgent('finance')).toBeNull();
+    expect(resolveAgent('learning')?.id).toBe('learning');
+    expect(resolveAgent('accounting')).toBeNull();
     expect(resolveAgent(undefined)).toBeNull();
     expect(isAgentId('work')).toBe(true);
   });
 
-  it('keeps the tool factory out of the client profile', () => {
-    const profile = toProfile(getAgent('fitness'));
-    expect('buildTools' in profile).toBe(false);
-    expect(profile.systemPrompt).toContain('Fitness Agent');
+  // The profile is the server/client boundary. Both of these are server-only:
+  // the tool factory closes over the store, and the system prompt is the
+  // agent's instructions rather than product surface.
+  it('keeps the tool factory and the system prompt out of the client profile', () => {
+    for (const agent of agents) {
+      const profile = toProfile(agent) as Record<string, unknown>;
+      expect('buildTools' in profile).toBe(false);
+      expect('systemPrompt' in profile).toBe(false);
+      expect(JSON.stringify(profile)).not.toContain(agent.systemPrompt.slice(0, 40));
+    }
   });
 
   it('documents every tool it actually builds', () => {
@@ -118,6 +132,63 @@ describe('demo model scripting', () => {
     );
     expect(step.type).toBe('text');
     if (step.type === 'text') expect(step.text).toContain('Ship Cannon');
+  });
+
+  it('separates a captured spend from a question about spending', () => {
+    // The merchant keeps the user's own casing — "BigBasket", not "Bigbasket".
+    expect(financeIntent('spent 840 at BigBasket on groceries')).toMatchObject({
+      toolName: 'log_expense',
+      input: { merchant: 'BigBasket', amount: 840, category: 'food' },
+    });
+    expect(financeIntent('spent 120 at the corner shop')).toMatchObject({
+      input: { merchant: 'The Corner Shop' },
+    });
+    expect(financeIntent('how much did I spend in the last 14 days?')).toMatchObject({
+      toolName: 'get_spending_summary',
+      input: { rangeDays: 14 },
+    });
+  });
+
+  it('reads a stated budget out of the question instead of assuming one', () => {
+    expect(financeIntent('am I under 20000 this month?')).toMatchObject({
+      toolName: 'get_spending_summary',
+      input: { budget: 20000 },
+    });
+    expect(financeIntent('what is my spend this month?')).toMatchObject({
+      input: { budget: null },
+    });
+  });
+
+  it('strips a comma out of an amount rather than truncating at it', () => {
+    expect(financeIntent('paid 1,250 to the landlord')).toMatchObject({
+      input: { amount: 1250, category: 'housing' },
+    });
+  });
+
+  it('captures a reading title without the queueing verb wrapped around it', () => {
+    expect(learningIntent('Add the RAG survey paper to my queue')).toMatchObject({
+      toolName: 'add_reading',
+      input: { title: 'RAG survey paper', kind: 'paper', status: 'queued' },
+    });
+  });
+
+  // `finish_reading` needs an id, and the scripted model has no way to know
+  // one. Reading the queue is the honest move; inventing an id is not.
+  it('answers "I finished X" by reading the queue rather than inventing an id', () => {
+    expect(
+      learningIntent('I finished the Designing Data-Intensive Applications book'),
+    ).toMatchObject({ toolName: 'list_reading' });
+  });
+
+  it('routes each desk to its own parser', () => {
+    // Same sentence, four desks: only the one that owns the words acts on it.
+    const queued = "what's still queued?";
+    expect(planStep('learning', userPrompt(queued), new Set(['list_reading'])).type).toBe(
+      'tool-call',
+    );
+    expect(planStep('finance', userPrompt(queued), new Set(['get_spending_summary'])).type).toBe(
+      'text',
+    );
   });
 
   it('explains itself when it has no scripted intent', () => {

@@ -154,6 +154,87 @@ const SEED_NOTES = [
   },
 ] as const;
 
+const SEED_EXPENSES = [
+  { date: daysAgo(1), merchant: 'BigBasket', category: 'food', amount: 2840, note: 'Weekly shop.' },
+  { date: daysAgo(2), merchant: 'Uber', category: 'transport', amount: 320, note: null },
+  {
+    date: daysAgo(3),
+    merchant: 'Anthropic',
+    category: 'subscriptions',
+    amount: 1800,
+    note: 'Annual plan, billed monthly.',
+  },
+  { date: daysAgo(4), merchant: 'Blue Tokai', category: 'food', amount: 480, note: null },
+  { date: daysAgo(6), merchant: 'Vercel', category: 'subscriptions', amount: 1650, note: null },
+  {
+    date: daysAgo(7),
+    merchant: 'Cult.fit',
+    category: 'health',
+    amount: 2400,
+    note: 'Gym, monthly.',
+  },
+  { date: daysAgo(9), merchant: 'Uber', category: 'transport', amount: 265, note: null },
+  {
+    date: daysAgo(12),
+    merchant: 'Decathlon',
+    category: 'shopping',
+    amount: 3200,
+    note: 'Lifting shoes.',
+  },
+  { date: daysAgo(14), merchant: 'Swiggy', category: 'food', amount: 610, note: null },
+  { date: daysAgo(15), merchant: 'Supabase', category: 'subscriptions', amount: 2100, note: null },
+  { date: daysAgo(19), merchant: 'Landlord', category: 'housing', amount: 24000, note: 'Rent.' },
+  { date: daysAgo(22), merchant: 'Apollo Pharmacy', category: 'health', amount: 890, note: null },
+  { date: daysAgo(26), merchant: 'BigBasket', category: 'food', amount: 2610, note: null },
+] as const;
+
+const SEED_READING = [
+  {
+    title: 'Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks',
+    kind: 'paper',
+    status: 'finished',
+    topic: 'rag',
+    takeaway:
+      'Retrieval is part of the model, not a preprocessing step — the generator is trained knowing a retriever exists.',
+  },
+  {
+    title: 'Designing Data-Intensive Applications',
+    kind: 'book',
+    status: 'reading',
+    topic: 'systems',
+    takeaway: null,
+  },
+  {
+    title: 'Lost in the Middle: How Language Models Use Long Contexts',
+    kind: 'paper',
+    status: 'finished',
+    topic: 'context',
+    takeaway:
+      'Accuracy sags for facts buried mid-context. Rank retrieved chunks and keep the strongest ones at the edges.',
+  },
+  {
+    title: 'Matryoshka Representation Learning',
+    kind: 'paper',
+    status: 'queued',
+    topic: 'embeddings',
+    takeaway: null,
+  },
+  {
+    title: 'Building Effective Agents',
+    kind: 'article',
+    status: 'queued',
+    topic: 'agents',
+    takeaway: null,
+  },
+  {
+    title: 'The Rust Programming Language',
+    kind: 'book',
+    status: 'queued',
+    topic: 'languages',
+    takeaway: null,
+  },
+] as const;
+
 const FITNESS_KNOWLEDGE = [
   'Progressive overload rule of thumb: add 2.5kg to upper-body lifts when the last set finishes at RPE 7 or below, 5kg for lower body.',
   'Stalling on a lift for three consecutive sessions at the same weight is the trigger for a deload to 90% and a rebuild, not for adding volume.',
@@ -164,6 +245,18 @@ const WORK_KNOWLEDGE = [
   'Portfolio pipeline order: Maestro (orchestration), Cannon (domain specialisation), fallback/retry library, n8n community node.',
   'Positioning rule: lead with "AI engineer", never "automation engineer". Maestro is orchestration; Cannon is specialisation. Do not let the two blur.',
   'A task is "slipping" when it is past its due date or has sat in blocked for more than three days.',
+] as const;
+
+const FINANCE_KNOWLEDGE = [
+  'Monthly budget: 45000 total. Rent is fixed at 24000, so 21000 covers everything discretionary.',
+  'Subscriptions are reviewed quarterly. Anything unopened for two consecutive months gets cancelled rather than downgraded.',
+  'A category is "running hot" when its share of the window exceeds its share of the previous window by more than ten points.',
+] as const;
+
+const LEARNING_KNOWLEDGE = [
+  'Reading rule: one paper and one book in flight at a time. A third means neither gets finished.',
+  'A finished item without a written takeaway does not count as finished — the takeaway is the artefact, the completion is not.',
+  'Anything queued for more than thirty days is either promoted to reading this week or dropped. The queue is not an archive.',
 ] as const;
 
 /**
@@ -179,6 +272,12 @@ export async function seedStore(store: CannonStore): Promise<void> {
   }
   for (const note of SEED_NOTES) {
     await store.addNote({ ...note });
+  }
+  for (const expense of SEED_EXPENSES) {
+    await store.logExpense({ ...expense });
+  }
+  for (const item of SEED_READING) {
+    await store.addReading({ ...item });
   }
 
   await store.upsertDocuments([
@@ -210,6 +309,44 @@ export async function seedStore(store: CannonStore): Promise<void> {
       content: `${note.date} (${note.source}) — ${note.content}`,
       embedding: localEmbedding(note.content),
       metadata: { source: note.source, date: note.date },
+    })),
+    ...FINANCE_KNOWLEDGE.map((content) => ({
+      agent: 'finance' as const,
+      content,
+      embedding: localEmbedding(content),
+      metadata: { source: 'budget-rules' },
+    })),
+    ...SEED_EXPENSES.map((expense) => {
+      const content = `${expense.date} — ${expense.merchant} ${expense.amount} (${expense.category})${
+        expense.note ? `. ${expense.note}` : ''
+      }`;
+      return {
+        agent: 'finance' as const,
+        content,
+        embedding: localEmbedding(content),
+        metadata: { source: 'expense-log', date: expense.date, category: expense.category },
+      };
+    }),
+    ...LEARNING_KNOWLEDGE.map((content) => ({
+      agent: 'learning' as const,
+      content,
+      embedding: localEmbedding(content),
+      metadata: { source: 'study-rules' },
+    })),
+    ...SEED_READING.map((item) => ({
+      agent: 'learning' as const,
+      content: `${item.kind}: ${item.title}${item.topic ? ` (${item.topic})` : ''}`,
+      embedding: localEmbedding(item.title),
+      metadata: { source: 'reading-list', kind: item.kind },
+    })),
+    // Takeaways are indexed separately from the item they came from. "What
+    // have I learned about embeddings" should retrieve the sentence he wrote,
+    // not the title of the paper it was written about.
+    ...SEED_READING.filter((item) => item.takeaway !== null).map((item) => ({
+      agent: 'learning' as const,
+      content: `Takeaway from "${item.title}": ${item.takeaway}`,
+      embedding: localEmbedding(item.takeaway as string),
+      metadata: { source: 'takeaway', title: item.title },
     })),
   ]);
 }

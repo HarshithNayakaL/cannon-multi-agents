@@ -28,12 +28,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   }
 
   let messages: UIMessage[];
+  let preferredModel: string | undefined;
   try {
-    const body = (await request.json()) as { messages?: UIMessage[] };
+    const body = (await request.json()) as { messages?: UIMessage[]; model?: unknown };
     if (!Array.isArray(body.messages) || body.messages.length === 0) {
       throw new Error('messages must be a non-empty array');
     }
     messages = body.messages;
+    // Validated against the catalog inside resolveModel; anything unknown is
+    // ignored rather than passed through to a provider.
+    preferredModel = typeof body.model === 'string' ? body.model : undefined;
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
@@ -64,12 +68,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   }
 
   const fallbacks: NonNullable<CannonMetadata['fallbacks']> = [];
-  const { model, chain, simulated } = resolveModel(agent.id, (event: FallbackEvent) => {
-    fallbacks.push({ from: event.from, to: event.to, stage: event.stage });
-    console.warn(
-      `[cannon] ${agent.id}: ${event.from} failed at ${event.stage}, falling back to ${event.to}`,
-    );
-  });
+  const { model, chain, simulated } = resolveModel(
+    agent.id,
+    (event: FallbackEvent) => {
+      fallbacks.push({ from: event.from, to: event.to, stage: event.stage });
+      console.warn(
+        `[cannon] ${agent.id}: ${event.from} failed at ${event.stage}, falling back to ${event.to}`,
+      );
+    },
+    preferredModel,
+  );
 
   const startedAt = Date.now();
 

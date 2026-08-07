@@ -3,7 +3,14 @@ import { cosineSimilarity } from 'ai';
 import type { AgentId } from '@/lib/agents/types';
 import type {
   CannonStore,
+  Expense,
+  ExpenseFilter,
+  ExpenseInput,
   Note,
+  ReadingFilter,
+  ReadingInput,
+  ReadingItem,
+  ReadingStatus,
   ScoredDocument,
   StoredMessage,
   Task,
@@ -28,6 +35,8 @@ type Tables = {
   workouts: Workout[];
   tasks: Task[];
   notes: Note[];
+  expenses: Expense[];
+  reading: ReadingItem[];
   documents: VectorDocument[];
   messages: StoredMessage[];
 };
@@ -46,6 +55,8 @@ export class MemoryStore implements CannonStore {
     workouts: [],
     tasks: [],
     notes: [],
+    expenses: [],
+    reading: [],
     documents: [],
     messages: [],
   };
@@ -107,6 +118,55 @@ export class MemoryStore implements CannonStore {
     return this.tables.notes
       .filter((note) => (since ? note.date >= since : true))
       .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  async logExpense(input: ExpenseInput): Promise<Expense> {
+    const expense: Expense = { ...input, id: id('ex'), createdAt: new Date().toISOString() };
+    this.tables.expenses.push(expense);
+    return expense;
+  }
+
+  async listExpenses(filter: ExpenseFilter = {}): Promise<Expense[]> {
+    return this.tables.expenses
+      .filter((expense) => {
+        if (filter.category && expense.category.toLowerCase() !== filter.category.toLowerCase()) {
+          return false;
+        }
+        if (filter.since && expense.date < filter.since) return false;
+        return true;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  async addReading(input: ReadingInput): Promise<ReadingItem> {
+    const now = new Date().toISOString();
+    const item: ReadingItem = { ...input, id: id('rd'), createdAt: now, updatedAt: now };
+    this.tables.reading.push(item);
+    return item;
+  }
+
+  async listReading(filter: ReadingFilter = {}): Promise<ReadingItem[]> {
+    const rank: Record<ReadingStatus, number> = { reading: 0, queued: 1, finished: 2 };
+    return this.tables.reading
+      .filter((item) => {
+        if (filter.status && item.status !== filter.status) return false;
+        if (filter.topic && item.topic !== filter.topic) return false;
+        return true;
+      })
+      .sort((a, b) => rank[a.status] - rank[b.status]);
+  }
+
+  async updateReadingStatus(
+    itemId: string,
+    status: ReadingStatus,
+    takeaway?: string | null,
+  ): Promise<ReadingItem | null> {
+    const item = this.tables.reading.find((candidate) => candidate.id === itemId);
+    if (!item) return null;
+    item.status = status;
+    if (takeaway !== undefined) item.takeaway = takeaway;
+    item.updatedAt = new Date().toISOString();
+    return item;
   }
 
   async upsertDocuments(documents: VectorDocumentInput[]): Promise<number> {

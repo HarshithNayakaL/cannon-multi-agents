@@ -1,27 +1,28 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Inter_Tight, JetBrains_Mono } from 'next/font/google';
+import { JetBrains_Mono, Poppins } from 'next/font/google';
 
 import './globals.css';
 
 /**
- * Three typefaces, three jobs, no overlap.
+ * Two typefaces, two jobs, no overlap.
  *
- * Inter Tight carries display sizes, where its tighter fit and shorter
- * extenders hold a headline together. Inter carries everything read as
- * prose. JetBrains Mono is reserved for values a machine produced — tool
- * names, ids, model chains, similarity scores — so monospace stays a signal
- * rather than a texture.
+ * Poppins carries the whole interface, display and prose alike. It is a
+ * geometric sans — single-storey `a`, near-circular bowls — so it sets wider
+ * and rounder than a grotesque at the same size. The type scale in
+ * globals.css is sized and tracked against those proportions rather than
+ * Inter's; Poppins at Inter's tracking reads cramped.
+ *
+ * Only three weights are loaded. A geometric family shipped with all nine is
+ * a large download for widths nothing in this UI asks for.
+ *
+ * JetBrains Mono is reserved for values a machine produced — tool names, ids,
+ * model chains, similarity scores — so monospace stays a signal rather than a
+ * texture.
  */
-const inter = Inter({
+const poppins = Poppins({
   subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-const interTight = Inter_Tight({
-  subsets: ['latin'],
-  weight: ['500', '600'],
-  variable: '--font-inter-tight',
+  weight: ['400', '500', '600'],
+  variable: '--font-poppins',
   display: 'swap',
 });
 
@@ -68,7 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       data-theme="dark"
-      className={`${inter.variable} ${interTight.variable} ${jetbrains.variable}`}
+      className={`${poppins.variable} ${jetbrains.variable}`}
       suppressHydrationWarning
     >
       <head>

@@ -9,11 +9,13 @@ import { createPortal } from 'react-dom';
 import { Composer } from '@/components/chat/composer';
 import { EmptyState } from '@/components/chat/empty-state';
 import { MessageRow } from '@/components/chat/message-row';
+import { ModelPicker } from '@/components/chat/model-picker';
 import { ErrorPanel, StreamingIndicator } from '@/components/chat/status-strip';
 import { PromptInspector } from '@/components/inspector/prompt-inspector';
 import { AgentIcon } from '@/components/shell/agent-icon';
 import type { CannonMetadata, CannonUIMessage } from '@/lib/agents/message';
 import type { AgentProfile } from '@/lib/agents/registry';
+import { findModel, type ModelInfo } from '@/lib/ai/catalog';
 import type { RuntimeCapabilities } from '@/lib/env';
 
 const WIDE_QUERY = '(min-width: 1280px)';
@@ -34,10 +36,30 @@ function useWideViewport(): boolean {
 export function AgentWorkspace({
   profile,
   capabilities,
+  models,
+  initialModel,
+  initialQuery,
 }: {
   profile: AgentProfile;
   capabilities: RuntimeCapabilities;
+  /** Catalog entries this deployment actually holds a key for. */
+  models: ModelInfo[];
+  /** Model pinned by the dispatch screen, if the hand-off named one. */
+  initialModel?: string;
+  /** Question typed on the dispatch screen, sent once on arrival. */
+  initialQuery?: string;
 }) {
+  // `undefined` means auto — run the configured fallback chain untouched.
+  // A key handed over in the URL is only honoured if it is really in the
+  // catalog *and* this deployment can serve it; a stale link must not pin a
+  // model the server would silently ignore.
+  const [model, setModel] = useState<string | undefined>(() =>
+    initialModel && findModel(initialModel) && models.some((entry) => entry.key === initialModel)
+      ? initialModel
+      : undefined,
+  );
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+
   // Docked by default where there is room for a third column; on anything
   // narrower it is a sheet, and a sheet must never open uninvited. Until the
   // user expresses a preference the viewport decides — including on resize.
@@ -97,10 +119,27 @@ export function AgentWorkspace({
     return undefined;
   }, [messages]);
 
+  // The pin travels with the request rather than the transport, so switching
+  // model mid-conversation applies to the next turn without tearing down the
+  // chat and losing the transcript.
   function send(text: string) {
     clearError();
-    void sendMessage({ text });
+    void sendMessage({ text }, { body: { model } });
   }
+
+  // Arriving from the dispatch screen sends the question the user already
+  // typed there — being made to type it a second time is the whole reason
+  // routing screens feel like a tax.
+  const handedOff = useRef(false);
+  useEffect(() => {
+    if (handedOff.current) return;
+    if (!initialQuery || messages.length > 0) return;
+    handedOff.current = true;
+    void sendMessage({ text: initialQuery }, { body: { model } });
+    // `model` and `messages` are read at fire time; re-running on either would
+    // re-send the hand-off, which the ref already exists to prevent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuery]);
 
   const live = capabilities.inference !== 'simulated';
 
@@ -123,23 +162,34 @@ export function AgentWorkspace({
               <AgentIcon agent={profile.id} className="size-[18px]" />
             </span>
 
-            {/* The name is the one thing that must never truncate — it is how
-                you know which desk you are talking to. */}
+            {/* Short name on a phone, full title once there is room. At 390px
+                "Learning Agent" wraps to two lines and shoves the header
+                taller; the icon beside it already says which desk this is. */}
             <div className="min-w-0 flex-1">
-              <h1 className="t-title">{profile.title}</h1>
+              <h1 className="t-title truncate">
+                <span className="sm:hidden">{profile.name}</span>
+                <span className="hidden sm:inline">{profile.title}</span>
+              </h1>
             </div>
 
-            <div className="hidden items-center gap-3 sm:flex">
-              <span className="status">
-                <span
-                  className="dot"
-                  style={{ background: live ? 'var(--good)' : 'var(--idle)' }}
-                  aria-hidden="true"
-                />
-                {capabilities.inference}
-              </span>
-              <span className="status">{capabilities.storage}</span>
-            </div>
+            {/* The storage chip is the first thing to go when space runs
+                out — it never changes during a session. The model does. */}
+            <span className="status hidden lg:inline-flex">
+              <span
+                className="dot"
+                style={{ background: live ? 'var(--good)' : 'var(--idle)' }}
+                aria-hidden="true"
+              />
+              {capabilities.storage}
+            </span>
+
+            <ModelPicker
+              models={models}
+              value={model}
+              onChange={setModel}
+              open={modelPickerOpen}
+              onOpenChange={setModelPickerOpen}
+            />
 
             <button
               type="button"

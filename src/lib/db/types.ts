@@ -38,6 +38,44 @@ export type Task = {
 
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
 
+export type Expense = {
+  id: string;
+  date: string;
+  merchant: string;
+  category: string;
+  amount: number;
+  note: string | null;
+  createdAt: string;
+};
+
+export type ExpenseInput = Omit<Expense, 'id' | 'createdAt'>;
+
+export type ExpenseFilter = {
+  category?: string;
+  /** Inclusive lower bound, ISO date. */
+  since?: string;
+};
+
+export type ReadingStatus = 'queued' | 'reading' | 'finished';
+
+export type ReadingItem = {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReadingStatus;
+  topic: string | null;
+  takeaway: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReadingInput = Omit<ReadingItem, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type ReadingFilter = {
+  status?: ReadingStatus;
+  topic?: string;
+};
+
 export type Note = {
   id: string;
   content: string;
@@ -99,6 +137,17 @@ export interface CannonStore {
 
   addNote(input: Omit<Note, 'id'>): Promise<Note>;
   listNotes(since?: string): Promise<Note[]>;
+
+  logExpense(input: ExpenseInput): Promise<Expense>;
+  listExpenses(filter?: ExpenseFilter): Promise<Expense[]>;
+
+  addReading(input: ReadingInput): Promise<ReadingItem>;
+  listReading(filter?: ReadingFilter): Promise<ReadingItem[]>;
+  updateReadingStatus(
+    id: string,
+    status: ReadingStatus,
+    takeaway?: string | null,
+  ): Promise<ReadingItem | null>;
 
   upsertDocuments(documents: VectorDocumentInput[]): Promise<number>;
   searchDocuments(agent: AgentId, embedding: number[], limit: number): Promise<ScoredDocument[]>;

@@ -1,6 +1,6 @@
 import type { ToolSet } from 'ai';
 
-export const AGENT_IDS = ['fitness', 'work'] as const;
+export const AGENT_IDS = ['fitness', 'work', 'finance', 'learning'] as const;
 
 export type AgentId = (typeof AGENT_IDS)[number];
 
@@ -31,5 +31,11 @@ export type AgentDefinition = {
   toolSummaries: AgentToolSummary[];
   /** Starter prompts for the empty state. */
   suggestions: string[];
+  /**
+   * Vocabulary this desk owns. The dispatcher scores an incoming request
+   * against these, so they should be the words a person actually types —
+   * not a description of the domain.
+   */
+  keywords: string[];
   buildTools: () => ToolSet;
 };

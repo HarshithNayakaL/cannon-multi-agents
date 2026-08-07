@@ -3,7 +3,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { AgentId } from '@/lib/agents/types';
 import type {
   CannonStore,
+  Expense,
+  ExpenseFilter,
+  ExpenseInput,
   Note,
+  ReadingFilter,
+  ReadingInput,
+  ReadingItem,
+  ReadingStatus,
   ScoredDocument,
   StoredMessage,
   Task,
@@ -40,6 +47,27 @@ type TaskRow = {
 };
 
 type NoteRow = { id: string; content: string; source: string; date: string };
+
+type ExpenseRow = {
+  id: string;
+  date: string;
+  merchant: string;
+  category: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
+};
+
+type ReadingRow = {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReadingStatus;
+  topic: string | null;
+  takeaway: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 type MatchRow = {
   id: string;
@@ -168,6 +196,75 @@ export class SupabaseStore implements CannonStore {
     }));
   }
 
+  async logExpense(input: ExpenseInput): Promise<Expense> {
+    const row = unwrap(
+      await this.client
+        .from('expenses')
+        .insert({
+          date: input.date,
+          merchant: input.merchant,
+          category: input.category,
+          amount: input.amount,
+          note: input.note,
+        })
+        .select()
+        .single<ExpenseRow>(),
+      'insert expense',
+    );
+    return toExpense(row);
+  }
+
+  async listExpenses(filter: ExpenseFilter = {}): Promise<Expense[]> {
+    let query = this.client.from('expenses').select('*').order('date', { ascending: false });
+    if (filter.category) query = query.ilike('category', filter.category);
+    if (filter.since) query = query.gte('date', filter.since);
+    const rows = unwrap(await query.returns<ExpenseRow[]>(), 'list expenses');
+    return rows.map(toExpense);
+  }
+
+  async addReading(input: ReadingInput): Promise<ReadingItem> {
+    const row = unwrap(
+      await this.client
+        .from('reading')
+        .insert({
+          title: input.title,
+          kind: input.kind,
+          status: input.status,
+          topic: input.topic,
+          takeaway: input.takeaway,
+        })
+        .select()
+        .single<ReadingRow>(),
+      'insert reading item',
+    );
+    return toReading(row);
+  }
+
+  async listReading(filter: ReadingFilter = {}): Promise<ReadingItem[]> {
+    let query = this.client.from('reading').select('*').order('updated_at', { ascending: false });
+    if (filter.status) query = query.eq('status', filter.status);
+    if (filter.topic) query = query.eq('topic', filter.topic);
+    const rows = unwrap(await query.returns<ReadingRow[]>(), 'list reading');
+    return rows.map(toReading);
+  }
+
+  async updateReadingStatus(
+    id: string,
+    status: ReadingStatus,
+    takeaway?: string | null,
+  ): Promise<ReadingItem | null> {
+    const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+    if (takeaway !== undefined) patch.takeaway = takeaway;
+    const { data, error } = await this.client
+      .from('reading')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .maybeSingle<ReadingRow>();
+    if (error) throw new Error(`Supabase update reading failed: ${error.message}`);
+    return data ? toReading(data) : null;
+  }
+
   async upsertDocuments(documents: VectorDocumentInput[]): Promise<number> {
     if (documents.length === 0) return 0;
     const { error } = await this.client.from('documents').insert(
@@ -258,6 +355,31 @@ function toTask(row: TaskRow): Task {
     priority: row.priority,
     dueDate: row.due_date,
     project: row.project,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toExpense(row: ExpenseRow): Expense {
+  return {
+    id: row.id,
+    date: row.date,
+    merchant: row.merchant,
+    category: row.category,
+    amount: Number(row.amount),
+    note: row.note,
+    createdAt: row.created_at,
+  };
+}
+
+function toReading(row: ReadingRow): ReadingItem {
+  return {
+    id: row.id,
+    title: row.title,
+    kind: row.kind,
+    status: row.status,
+    topic: row.topic,
+    takeaway: row.takeaway,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
