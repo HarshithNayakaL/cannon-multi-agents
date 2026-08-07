@@ -6,13 +6,19 @@ import { resolveAgent } from '@/lib/agents/registry';
 import { resolveModel } from '@/lib/ai/provider';
 import type { FallbackEvent } from '@/lib/ai/fallback';
 import { getStore } from '@/lib/db';
-import { formatContext, retrieve } from '@/lib/rag/retrieve';
+import { formatContext, retrieve, type RetrievalTrace } from '@/lib/rag/retrieve';
+import type { CannonStore } from '@/lib/db/types';
+import type { AgentId } from '@/lib/agents/types';
 
 // Tool execution talks to Supabase, so this handler needs the Node runtime.
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 const MAX_STEPS = 5;
+
+function emptyTrace(agent: AgentId, query: string): RetrievalTrace {
+  return { agent, query, backend: 'local', hits: [] };
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ agent: string }> }) {
   const { agent: agentParam } = await params;
@@ -32,12 +38,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const store = await getStore();
   const query = lastUserText(messages);
 
-  // Retrieval is scoped to this agent inside the store query itself, so the
-  // fitness agent can never see work documents even by accident.
-  const trace = await retrieve(store, agent.id, query);
+  // Retrieval is a supporting lookup, not the thing the user asked for — a
+  // Supabase hiccup here must degrade to "no context" rather than take the
+  // whole chat request down with it.
+  let store: CannonStore;
+  let trace: RetrievalTrace;
+  try {
+    store = await getStore();
+  } catch (error) {
+    console.error(`[cannon] ${agent.id} store unavailable`, error);
+    return NextResponse.json(
+      { error: `The ${agent.name} agent's data store is unavailable right now.` },
+      { status: 503 },
+    );
+  }
+  try {
+    // Retrieval is scoped to this agent inside the store query itself, so
+    // the fitness agent can never see work documents even by accident.
+    trace = await retrieve(store, agent.id, query);
+  } catch (error) {
+    console.error(`[cannon] ${agent.id} retrieval failed`, error);
+    trace = emptyTrace(agent.id, query);
+  }
 
   const fallbacks: NonNullable<CannonMetadata['fallbacks']> = [];
   const { model, chain, simulated } = resolveModel(agent.id, (event: FallbackEvent) => {
@@ -49,18 +73,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
 
   const startedAt = Date.now();
 
-  const result = streamText({
-    model,
-    system: `${agent.systemPrompt}\n\n${formatContext(trace)}\n\nToday is ${new Date()
-      .toISOString()
-      .slice(0, 10)}.`,
-    messages: await convertToModelMessages(messages),
-    tools: agent.buildTools(),
-    stopWhen: stepCountIs(MAX_STEPS),
-    onError: ({ error }) => {
-      console.error(`[cannon] ${agent.id} stream error`, error);
-    },
-  });
+  let result: ReturnType<typeof streamText>;
+  try {
+    result = streamText({
+      model,
+      system: `${agent.systemPrompt}\n\n${formatContext(trace)}\n\nToday is ${new Date()
+        .toISOString()
+        .slice(0, 10)}.`,
+      messages: await convertToModelMessages(messages),
+      tools: agent.buildTools(),
+      stopWhen: stepCountIs(MAX_STEPS),
+      onError: ({ error }) => {
+        console.error(`[cannon] ${agent.id} stream error`, error);
+      },
+    });
+  } catch (error) {
+    console.error(`[cannon] ${agent.id} failed to start`, error);
+    const message = error instanceof Error ? error.message : 'Unknown error.';
+    return NextResponse.json(
+      { error: `The ${agent.name} agent could not start: ${message}` },
+      { status: 502 },
+    );
+  }
 
   return result.toUIMessageStreamResponse<CannonUIMessage>({
     originalMessages: messages as CannonUIMessage[],
