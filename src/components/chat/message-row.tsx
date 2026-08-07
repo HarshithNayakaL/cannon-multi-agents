@@ -32,7 +32,7 @@ function UserMessage({ message }: { message: CannonUIMessage }) {
   return (
     <div className="enter flex justify-end">
       <div
-        className="max-w-[min(42rem,86%)] rounded-[var(--r-lg)] px-4 py-2.5"
+        className="max-w-[min(42rem,90%)] rounded-[var(--r-lg)] px-3.5 py-2.5 sm:px-4"
         style={{ background: 'var(--bg-raise)' }}
       >
         <p className="t-body whitespace-pre-wrap">{text}</p>
@@ -56,7 +56,7 @@ function AssistantMessage({
   const meta = message.metadata;
 
   return (
-    <div className="enter border-l-2 pl-5" style={{ borderColor: profile.accent }}>
+    <div className="enter border-l-2 pl-3.5 sm:pl-5" style={{ borderColor: profile.accent }}>
       <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <span
           className="text-[0.6875rem] font-semibold tracking-[0.01em]"

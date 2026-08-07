@@ -23,8 +23,8 @@ export function WorkoutLoggedCard({ result }: { result: WorkoutLoggedResult }) {
       </div>
 
       <StatGrid>
-        <Stat label="Prescription" value={`${workout.sets}×${workout.reps}`} />
         <Stat label="Load" value={workout.weight} unit="kg" />
+        <Stat label="Prescription" value={`${workout.sets}×${workout.reps}`} />
         <Stat label="Volume" value={Math.round(volume).toLocaleString()} unit="kg" />
         <Stat label="RPE" value={workout.rpe ?? '—'} tone={rpeTone(workout.rpe)} />
       </StatGrid>
@@ -126,9 +126,6 @@ export function ProgressCard({ result }: { result: ProgressSummaryResult }) {
       />
 
       <StatGrid>
-        <Stat label="Sessions" value={result.sessions} />
-        <Stat label="Total volume" value={result.totalVolume.toLocaleString()} unit="kg" />
-        <Stat label="Top load" value={result.bestWeight} unit="kg" />
         <Stat
           label="Volume trend"
           value={`${result.trendPct > 0 ? '+' : ''}${result.trendPct}`}
@@ -141,6 +138,9 @@ export function ProgressCard({ result }: { result: ProgressSummaryResult }) {
                 : 'var(--ink-2)'
           }
         />
+        <Stat label="Sessions" value={result.sessions} />
+        <Stat label="Total volume" value={result.totalVolume.toLocaleString()} unit="kg" />
+        <Stat label="Top load" value={result.bestWeight} unit="kg" />
       </StatGrid>
 
       <p className="t-label">Window: last {result.rangeDays} days</p>

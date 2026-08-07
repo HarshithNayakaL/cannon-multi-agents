@@ -19,6 +19,26 @@ describe('readEnv', () => {
     expect(readEnv({ GEMINI_API_KEY: 'a' }).googleApiKey).toBe('a');
     expect(readEnv({ GOOGLE_GENERATIVE_AI_API_KEY: 'b' }).googleApiKey).toBe('b');
   });
+
+  it('strips a trailing slash off the Supabase URL', () => {
+    // A pasted trailing slash produces `//rest/v1/...` and the Supabase
+    // gateway rejects the request outright.
+    expect(readEnv({ SUPABASE_URL: 'https://x.supabase.co/' }).supabaseUrl).toBe(
+      'https://x.supabase.co',
+    );
+    expect(readEnv({ SUPABASE_URL: 'https://x.supabase.co///' }).supabaseUrl).toBe(
+      'https://x.supabase.co',
+    );
+    expect(readEnv({ SUPABASE_URL: '  https://x.supabase.co/  ' }).supabaseUrl).toBe(
+      'https://x.supabase.co',
+    );
+  });
+
+  it('leaves a correctly formed Supabase URL alone', () => {
+    expect(readEnv({ SUPABASE_URL: 'https://x.supabase.co' }).supabaseUrl).toBe(
+      'https://x.supabase.co',
+    );
+  });
 });
 
 describe('capability detection', () => {

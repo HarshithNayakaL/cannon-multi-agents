@@ -4,6 +4,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { PanelRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 
 import { Composer } from '@/components/chat/composer';
 import { EmptyState } from '@/components/chat/empty-state';
@@ -45,6 +46,13 @@ export function AgentWorkspace({
   const inspectorOpen = preference ?? wideViewport;
   const setInspectorOpen = (next: boolean | ((open: boolean) => boolean)) =>
     setPreference((current) => (typeof next === 'function' ? next(current ?? wideViewport) : next));
+
+  // `createPortal` needs document, which does not exist during SSR.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const transcript = useRef<HTMLDivElement>(null);
 
@@ -97,23 +105,28 @@ export function AgentWorkspace({
   const live = capabilities.inference !== 'simulated';
 
   return (
-    <div className="relative z-10 flex h-full min-w-0 flex-1">
+    <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1">
       {/* ---------------- Chat column ---------------- */}
       <section className="flex h-full min-w-0 flex-1 flex-col">
         {/* Header shares the transcript's measure so nothing drifts left of
             the conversation on a very wide display. */}
-        <div className="border-b px-6 sm:px-10" style={{ borderColor: 'var(--line)' }}>
-          <header className="mx-auto flex w-full max-w-[52rem] items-center gap-3 py-5 3xl:max-w-[62rem]">
+        <div
+          className="border-b px-4 pt-[env(safe-area-inset-top)] sm:px-10"
+          style={{ borderColor: 'var(--line)' }}
+        >
+          <header className="mx-auto flex w-full max-w-[52rem] items-center gap-2.5 py-3.5 sm:gap-3 sm:py-5 3xl:max-w-[62rem]">
             <span
-              className="flex size-8 items-center justify-center rounded-[var(--r-md)] md:hidden"
-              style={{ color: profile.accent }}
+              className="flex size-9 shrink-0 items-center justify-center rounded-[var(--r-md)] md:hidden"
+              style={{ background: profile.accentSoft, color: profile.accent }}
               aria-hidden="true"
             >
-              <AgentIcon agent={profile.id} className="size-4" />
+              <AgentIcon agent={profile.id} className="size-[18px]" />
             </span>
 
+            {/* The name is the one thing that must never truncate — it is how
+                you know which desk you are talking to. */}
             <div className="min-w-0 flex-1">
-              <h1 className="t-title truncate">{profile.title}</h1>
+              <h1 className="t-title">{profile.title}</h1>
             </div>
 
             <div className="hidden items-center gap-3 sm:flex">
@@ -136,17 +149,17 @@ export function AgentWorkspace({
               className="icon-btn size-10 shrink-0"
               style={inspectorOpen ? { color: 'var(--ink)' } : undefined}
             >
-              <PanelRight className="size-4" />
+              <PanelRight className="size-[18px]" />
             </button>
           </header>
         </div>
 
         <div
           ref={transcript}
-          className="scroll min-h-0 flex-1 overflow-y-auto px-6 sm:px-10"
+          className="scroll min-h-0 flex-1 overflow-y-auto px-4 sm:px-10"
           data-testid="transcript"
         >
-          <div className="mx-auto flex min-h-full w-full max-w-[52rem] flex-col gap-8 py-8 3xl:max-w-[62rem]">
+          <div className="mx-auto flex min-h-full w-full max-w-[52rem] flex-col gap-6 py-5 sm:gap-8 sm:py-8 3xl:max-w-[62rem]">
             {messages.length === 0 ? (
               <EmptyState profile={profile} onPick={send} />
             ) : (
@@ -170,7 +183,7 @@ export function AgentWorkspace({
           </div>
         </div>
 
-        <div className="px-6 pt-2 pb-[calc(env(safe-area-inset-bottom)+5.25rem)] sm:px-10 md:pb-6">
+        <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:px-10 md:pb-6">
           <div className="mx-auto w-full max-w-[52rem] 3xl:max-w-[62rem]">
             <Composer
               onSend={send}
@@ -193,33 +206,49 @@ export function AgentWorkspace({
         </aside>
       ) : null}
 
-      {/* ----- Inspector: sheet on anything narrower ----- */}
-      {inspectorOpen && !wideViewport ? (
-        <div
-          className="fixed inset-0 z-40 flex"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Prompt inspector"
-        >
-          <button
-            type="button"
-            aria-label="Close inspector"
-            onClick={() => setInspectorOpen(false)}
-            className="fade absolute inset-0"
-            style={{ background: 'rgba(0,0,0,0.5)' }}
-          />
-          <div
-            className="sheet overlay absolute inset-x-0 bottom-0 max-h-[86dvh] rounded-t-[var(--r-lg)] sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:w-[380px] sm:rounded-none sm:border-y-0 sm:border-r-0"
-            style={{ background: 'var(--bg-panel)' }}
-          >
-            <PromptInspector
-              profile={profile}
-              metadata={latestMetadata}
-              onClose={() => setInspectorOpen(false)}
-            />
-          </div>
-        </div>
-      ) : null}
+      {/* ----- Inspector: sheet on anything narrower -----
+          Portalled to <body> so it escapes this subtree's stacking context.
+          Nested inside it, the sheet's z-index is scoped to the workspace's
+          own layer and the fixed tab bar paints straight over the top of it. */}
+      {inspectorOpen && !wideViewport && mounted
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Prompt inspector"
+            >
+              <button
+                type="button"
+                aria-label="Close inspector"
+                onClick={() => setInspectorOpen(false)}
+                className="fade absolute inset-0"
+                style={{ background: 'rgba(0,0,0,0.55)' }}
+              />
+              {/* Always a bottom sheet below the docked breakpoint. A
+                  half-width side drawer here would sit alongside the tab bar
+                  and split the screen into two competing panels. */}
+              <div
+                className="sheet absolute inset-x-0 bottom-0 flex max-h-[84dvh] flex-col overflow-hidden rounded-t-[var(--r-xl)] border-t"
+                style={{
+                  // Opaque, not glass: a modal sits over arbitrary content,
+                  // and translucency there means the page bleeds through.
+                  background: 'var(--bg-panel)',
+                  borderColor: 'var(--line-strong)',
+                  boxShadow: 'var(--e-3)',
+                  paddingBottom: 'env(safe-area-inset-bottom)',
+                }}
+              >
+                <PromptInspector
+                  profile={profile}
+                  metadata={latestMetadata}
+                  onClose={() => setInspectorOpen(false)}
+                />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

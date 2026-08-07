@@ -30,7 +30,7 @@ export function PromptInspector({
   return (
     <div className="flex h-full flex-col">
       <header
-        className="flex items-center gap-2 border-b px-5 py-4"
+        className="flex items-center gap-2 border-b px-4 py-4 sm:px-5"
         style={{ borderColor: 'var(--line)' }}
       >
         <h2 className="t-label flex-1">Prompt Inspector</h2>
@@ -191,7 +191,7 @@ function Section({
 }) {
   return (
     <section
-      className={last ? 'px-5 py-5' : 'border-b px-5 py-5'}
+      className={last ? 'px-4 py-4 sm:px-5 sm:py-5' : 'border-b px-4 py-4 sm:px-5 sm:py-5'}
       style={{ borderColor: 'var(--line)' }}
     >
       <div className="mb-2.5 flex items-center gap-2">

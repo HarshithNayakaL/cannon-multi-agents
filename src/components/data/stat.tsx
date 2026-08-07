@@ -1,26 +1,33 @@
 /**
- * The core telemetry primitive: a quiet label over a loud number.
+ * The core telemetry primitive: a quiet label over a loud number, sitting on
+ * its own tile.
  *
- * The size jump between the two is the entire hierarchy — no boxes, no rules,
- * no tinted backgrounds. Units sit at label weight so the figure itself is
- * what the eye lands on.
+ * The size jump between label and figure is the entire hierarchy — no rules,
+ * no chrome. Units sit at label weight so the figure is what the eye lands on.
+ * `wide` promotes a tile to the full row when its number is the headline
+ * rather than one of a set.
  */
 export function Stat({
   label,
   value,
   unit,
   tone,
+  wide = false,
 }: {
   label: string;
   value: string | number;
   unit?: string;
   tone?: string;
+  wide?: boolean;
 }) {
   return (
-    <div className="min-w-0">
+    <div className={`tile${wide ? ' bento-wide' : ''}`}>
       <div className="t-label mb-1 truncate">{label}</div>
       <div className="flex items-baseline gap-1">
-        <span className="readout text-[1.375rem]" style={{ color: tone ?? 'var(--ink)' }}>
+        <span
+          className={`readout ${wide ? 'text-[1.75rem]' : 'text-[1.375rem]'} leading-none`}
+          style={{ color: tone ?? 'var(--ink)' }}
+        >
           {value}
         </span>
         {unit ? (
@@ -34,5 +41,5 @@ export function Stat({
 }
 
 export function StatGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">{children}</div>;
+  return <div className="bento">{children}</div>;
 }

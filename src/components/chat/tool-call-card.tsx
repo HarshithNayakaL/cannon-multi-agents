@@ -40,7 +40,7 @@ export function ToolCallCard({ part }: { part: Part }) {
       {running ? <span className="scan" aria-hidden="true" /> : null}
 
       <div
-        className="flex items-center gap-2.5 border-b px-5 py-3.5"
+        className="flex items-center gap-2.5 border-b px-4 py-3 sm:px-5 sm:py-3.5"
         style={{ borderColor: 'var(--line)' }}
       >
         <span className="dot" style={{ background: tone }} aria-hidden="true" />
@@ -67,7 +67,7 @@ export function ToolCallCard({ part }: { part: Part }) {
 
       {showInput && part.input !== undefined ? (
         <pre
-          className="scroll mono max-h-40 overflow-auto border-b px-5 py-4 leading-relaxed"
+          className="scroll mono max-h-40 overflow-auto border-b px-4 py-3 leading-relaxed sm:px-5 sm:py-4"
           style={{
             borderColor: 'var(--line)',
             background: 'var(--bg-sunken)',
@@ -79,13 +79,13 @@ export function ToolCallCard({ part }: { part: Part }) {
       ) : null}
 
       {failed ? (
-        <p className="t-small px-5 py-4" style={{ color: 'var(--bad)' }}>
+        <p className="t-small px-4 py-3.5 sm:px-5 sm:py-4" style={{ color: 'var(--bad)' }}>
           {part.errorText ?? 'The tool call failed.'}
         </p>
       ) : null}
 
       {part.state === 'output-available' ? (
-        <div className="p-5 sm:p-6">
+        <div className="p-4 sm:p-6">
           <ToolResultView output={part.output} />
         </div>
       ) : null}

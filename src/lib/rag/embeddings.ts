@@ -84,8 +84,11 @@ export async function embedTexts(texts: string[]): Promise<EmbeddingResult> {
       providerOptions: { google: { outputDimensionality: EMBEDDING_DIMENSIONS } },
     });
     return { embeddings, backend: 'gemini' };
-  } catch {
-    // Embedding is a supporting path, never the reason a chat request fails.
+  } catch (error) {
+    // Embedding is a supporting path, never the reason a chat request fails —
+    // but swallowing the reason silently makes a misconfigured key look
+    // identical to having no key at all, so it gets logged.
+    console.error('[cannon] gemini embedding failed, falling back to local', error);
     return { embeddings: texts.map((text) => localEmbedding(text)), backend: 'local' };
   }
 }

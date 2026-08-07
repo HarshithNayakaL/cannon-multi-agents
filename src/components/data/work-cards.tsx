@@ -105,8 +105,8 @@ export function TaskListCard({ result }: { result: TaskListResult }) {
       </div>
 
       <StatGrid>
-        <Stat label="Total" value={result.tasks.length} />
         <Stat label="Open" value={counts.open} />
+        <Stat label="Total" value={result.tasks.length} />
         <Stat
           label="Blocked"
           value={counts.blocked}

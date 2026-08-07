@@ -22,7 +22,7 @@ export type CannonEnv = {
 
 const DEFAULTS = {
   groqModel: 'llama-3.3-70b-versatile',
-  googleModel: 'gemini-2.0-flash',
+  googleModel: 'gemini-3.6-flash',
   embeddingModel: 'gemini-embedding-001',
 } as const;
 
@@ -36,6 +36,24 @@ function str(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Supabase's client joins this with `/rest/v1/...`, so a pasted trailing slash
+ * produces a double slash and the gateway rejects the whole request with
+ * "Invalid path specified in request URL". Copying the URL with a trailing
+ * slash is the single easiest mistake to make in the setup flow, so it is
+ * normalised here rather than left as a footgun.
+ */
+function baseUrl(
+  source: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  ...keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = str(source, key);
+    if (value !== undefined) return value.replace(/\/+$/, '');
+  }
+  return undefined;
+}
+
 export function readEnv(
   source: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
 ): CannonEnv {
@@ -46,7 +64,7 @@ export function readEnv(
     googleModel: str(source, 'CANNON_GOOGLE_MODEL') ?? DEFAULTS.googleModel,
     embeddingModel: str(source, 'CANNON_EMBEDDING_MODEL') ?? DEFAULTS.embeddingModel,
 
-    supabaseUrl: str(source, 'SUPABASE_URL') ?? str(source, 'NEXT_PUBLIC_SUPABASE_URL'),
+    supabaseUrl: baseUrl(source, 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'),
     supabaseServiceKey:
       str(source, 'SUPABASE_SERVICE_ROLE_KEY') ?? str(source, 'SUPABASE_SERVICE_KEY'),
   };
