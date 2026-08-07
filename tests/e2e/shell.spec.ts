@@ -1,10 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function signIn(page: Page) {
-  await page.goto('/signin');
-  await page.getByLabel('Email').fill('demo@cannon.dev');
-  await page.getByRole('button', { name: /enter cannon/i }).click();
-  await expect(page).toHaveURL(/\/fitness/);
+async function visitFitness(page: Page) {
+  await page.goto('/fitness');
 }
 
 async function openInspector(page: Page, isMobile: boolean) {
@@ -16,7 +13,7 @@ test('the prompt inspector exposes the live prompt, tools and retrieval sources'
   page,
   isMobile,
 }) => {
-  await signIn(page);
+  await visitFitness(page);
   await openInspector(page, isMobile);
 
   await expect(page.getByText('log_workout(exercise', { exact: false })).toBeVisible();
@@ -25,7 +22,7 @@ test('the prompt inspector exposes the live prompt, tools and retrieval sources'
 });
 
 test('the inspector names the provider that answered', async ({ page, isMobile }) => {
-  await signIn(page);
+  await visitFitness(page);
 
   await page.getByLabel('Message the agent').fill('How is my bench press progressing?');
   await page.getByRole('button', { name: 'Send message' }).click();
@@ -36,7 +33,7 @@ test('the inspector names the provider that answered', async ({ page, isMobile }
 });
 
 test('layout swaps between the rail and the bottom tab bar', async ({ page, isMobile }) => {
-  await signIn(page);
+  await visitFitness(page);
 
   const rail = page.getByRole('navigation', { name: 'Agent rail' });
   const tabBar = page.getByRole('navigation', { name: 'Agent tabs' });
@@ -51,7 +48,7 @@ test('layout swaps between the rail and the bottom tab bar', async ({ page, isMo
 });
 
 test('switching desks re-lights the accent', async ({ page }) => {
-  await signIn(page);
+  await visitFitness(page);
 
   const accent = () =>
     page.evaluate(() => document.documentElement.style.getPropertyValue('--accent').trim());
@@ -64,7 +61,7 @@ test('switching desks re-lights the accent', async ({ page }) => {
 });
 
 test('dark is the default theme and the toggle survives a reload', async ({ page }) => {
-  await signIn(page);
+  await visitFitness(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   await page
@@ -78,7 +75,7 @@ test('dark is the default theme and the toggle survives a reload', async ({ page
 });
 
 test('the page never scrolls sideways at any tested width', async ({ page }) => {
-  await signIn(page);
+  await visitFitness(page);
 
   for (const width of [375, 768, 1024, 1440, 2200]) {
     await page.setViewportSize({ width, height: 900 });

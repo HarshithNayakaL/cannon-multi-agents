@@ -1,8 +1,7 @@
 'use client';
 
-import { LogOut } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 import { AgentIcon } from '@/components/shell/agent-icon';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -15,13 +14,6 @@ import type { AgentProfile } from '@/lib/agents/registry';
  */
 export function MobileTabBar({ profiles }: { profiles: AgentProfile[] }) {
   const pathname = usePathname();
-  const router = useRouter();
-
-  async function signOut() {
-    await fetch('/api/auth/session', { method: 'DELETE' });
-    router.replace('/signin');
-    router.refresh();
-  }
 
   return (
     <nav
@@ -47,9 +39,6 @@ export function MobileTabBar({ profiles }: { profiles: AgentProfile[] }) {
 
       <span className="mx-1 h-7 w-px" style={{ background: 'var(--line)' }} aria-hidden="true" />
       <ThemeToggle className="size-9" />
-      <button type="button" onClick={signOut} aria-label="Sign out" className="icon-btn size-9">
-        <LogOut className="size-[15px]" />
-      </button>
     </nav>
   );
 }

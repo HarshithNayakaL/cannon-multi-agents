@@ -1,11 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function signIn(page: Page, destination: string) {
-  await page.goto('/signin');
-  await page.getByLabel('Email').fill('demo@cannon.dev');
-  await page.getByRole('button', { name: /enter cannon/i }).click();
-  await expect(page).toHaveURL(/\/fitness/);
-  if (destination !== '/fitness') await page.goto(destination);
+async function visit(page: Page, destination: string) {
+  await page.goto(destination);
 }
 
 /** The inspector documents the same tool names, so assertions stay in the transcript. */
@@ -19,7 +15,7 @@ function toolCall(page: Page, name: string) {
 
 test.describe('fitness agent', () => {
   test('logs a set through a tool call and renders it as a data card', async ({ page }) => {
-    await signIn(page, '/fitness');
+    await visit(page, '/fitness');
 
     await page.getByLabel('Message the agent').fill('Log today: bench press 4x8 @ 72.5kg RPE 8');
     await page.getByRole('button', { name: 'Send message' }).click();
@@ -37,7 +33,7 @@ test.describe('fitness agent', () => {
   });
 
   test('offers starter prompts on first run and sends one on click', async ({ page }) => {
-    await signIn(page, '/fitness');
+    await visit(page, '/fitness');
 
     const suggestion = transcript(page).getByRole('button', { name: /volume trend on bench/i });
     await expect(suggestion).toBeVisible();
@@ -51,7 +47,7 @@ test.describe('fitness agent', () => {
 
 test.describe('work agent', () => {
   test('reads the board and flags what is slipping', async ({ page }) => {
-    await signIn(page, '/work');
+    await visit(page, '/work');
     await expect(page.getByRole('heading', { level: 1, name: 'Work Agent' })).toBeVisible();
 
     await page.getByLabel('Message the agent').fill("What's slipping this week?");
@@ -64,7 +60,7 @@ test.describe('work agent', () => {
   });
 
   test('captures a task', async ({ page }) => {
-    await signIn(page, '/work');
+    await visit(page, '/work');
 
     await page
       .getByLabel('Message the agent')
@@ -78,7 +74,7 @@ test.describe('work agent', () => {
 });
 
 test('the two agents keep separate transcripts', async ({ page }) => {
-  await signIn(page, '/fitness');
+  await visit(page, '/fitness');
   await page.getByLabel('Message the agent').fill('bench press 4x8 @ 70kg RPE 7');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(toolCall(page, 'log_workout')).toBeVisible();

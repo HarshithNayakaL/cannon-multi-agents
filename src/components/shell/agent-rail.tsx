@@ -1,8 +1,7 @@
 'use client';
 
-import { LogOut } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 import { AgentIcon } from '@/components/shell/agent-icon';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -16,15 +15,8 @@ import type { AgentProfile } from '@/lib/agents/registry';
  * equivalent of Apple's tinted interactive glass — rather than a bare
  * highlight, so the selection reads as a physical resting place.
  */
-export function AgentRail({ profiles, email }: { profiles: AgentProfile[]; email: string }) {
+export function AgentRail({ profiles }: { profiles: AgentProfile[] }) {
   const pathname = usePathname();
-  const router = useRouter();
-
-  async function signOut() {
-    await fetch('/api/auth/session', { method: 'DELETE' });
-    router.replace('/signin');
-    router.refresh();
-  }
 
   return (
     <nav
@@ -69,15 +61,6 @@ export function AgentRail({ profiles, email }: { profiles: AgentProfile[]; email
 
       <div className="mt-auto flex flex-col items-center gap-1.5">
         <ThemeToggle className="size-10" />
-        <button
-          type="button"
-          onClick={signOut}
-          title={`Sign out ${email}`}
-          aria-label={`Sign out ${email}`}
-          className="icon-btn size-10"
-        >
-          <LogOut className="size-[17px]" />
-        </button>
       </div>
     </nav>
   );

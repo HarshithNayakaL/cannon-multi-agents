@@ -42,14 +42,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       # No provider keys in CI: the simulated model drives deterministic tool
-      # calls while routing, auth, retrieval and persistence run for real.
+      # calls while routing, retrieval and persistence run for real.
       - run: npm run build
-        env:
-          CANNON_AUTH_SECRET: ci-only-secret-not-used-anywhere-else
-
       - run: npm run test:e2e
-        env:
-          CANNON_AUTH_SECRET: ci-only-secret-not-used-anywhere-else
 
       - uses: actions/upload-artifact@v4
         if: failure()

@@ -3,9 +3,7 @@ import { z } from 'zod';
 
 import { isAgentId } from '@/lib/agents/types';
 import { captureNote } from '@/lib/agents/work/agent';
-import { getSession } from '@/lib/auth/server';
 import { getStore } from '@/lib/db';
-import { enforceRateLimit } from '@/lib/ratelimit';
 import { ingest } from '@/lib/rag/retrieve';
 import { today } from '@/lib/utils';
 
@@ -20,14 +18,6 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-
-  const limit = await enforceRateLimit(`${session.email}:ingest`);
-  if (!limit.success) {
-    return NextResponse.json({ error: 'Rate limit reached for ingestion.' }, { status: 429 });
-  }
-
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(

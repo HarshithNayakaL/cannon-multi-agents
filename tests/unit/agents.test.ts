@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { agents, getAgent, resolveAgent, toProfile } from '@/lib/agents/registry';
 import { AGENT_IDS, isAgentId } from '@/lib/agents/types';
 import { fitnessIntent, lastUserText, planStep, workIntent } from '@/lib/ai/demo-model';
-import { MemoryRateLimiter } from '@/lib/ratelimit';
 
 describe('registry', () => {
   it('exposes exactly the v1 agents', () => {
@@ -125,33 +124,5 @@ describe('demo model scripting', () => {
     const step = planStep('fitness', userPrompt('hello there'), new Set(['log_workout']));
     expect(step.type).toBe('text');
     if (step.type === 'text') expect(step.text).toContain('simulated');
-  });
-});
-
-describe('MemoryRateLimiter', () => {
-  it('allows up to the limit then rejects', () => {
-    const limiter = new MemoryRateLimiter(3, 1000, () => 0);
-    expect(limiter.check('a').success).toBe(true);
-    expect(limiter.check('a').success).toBe(true);
-    const third = limiter.check('a');
-    expect(third.success).toBe(true);
-    expect(third.remaining).toBe(0);
-    expect(limiter.check('a').success).toBe(false);
-  });
-
-  it('keys buckets independently', () => {
-    const limiter = new MemoryRateLimiter(1, 1000, () => 0);
-    expect(limiter.check('a').success).toBe(true);
-    expect(limiter.check('b').success).toBe(true);
-    expect(limiter.check('a').success).toBe(false);
-  });
-
-  it('reopens the bucket once the window rolls over', () => {
-    let now = 0;
-    const limiter = new MemoryRateLimiter(1, 1000, () => now);
-    expect(limiter.check('a').success).toBe(true);
-    expect(limiter.check('a').success).toBe(false);
-    now = 1001;
-    expect(limiter.check('a').success).toBe(true);
   });
 });

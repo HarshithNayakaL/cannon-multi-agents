@@ -13,7 +13,7 @@ const executablePath = process.env.CANNON_CHROMIUM_PATH || undefined;
 /**
  * E2E runs against a real production build with no provider keys, so the
  * simulated model drives deterministic tool calls. Everything else — routing,
- * auth, retrieval, tool execution, persistence — is the production path.
+ * retrieval, tool execution, persistence — is the production path.
  */
 export default defineConfig({
   testDir: './tests/e2e',
@@ -43,9 +43,9 @@ export default defineConfig({
   ],
   webServer: {
     command: `npm run start -- --port ${PORT}`,
-    url: `${BASE_URL}/signin`,
+    url: `${BASE_URL}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { NODE_ENV: 'production', CANNON_AUTH_SECRET: 'cannon-e2e-secret' },
+    env: { NODE_ENV: 'production' },
   },
 });

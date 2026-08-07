@@ -5,9 +5,7 @@ import { lastUserText, type CannonMetadata, type CannonUIMessage } from '@/lib/a
 import { resolveAgent } from '@/lib/agents/registry';
 import { resolveModel } from '@/lib/ai/provider';
 import type { FallbackEvent } from '@/lib/ai/fallback';
-import { getSession } from '@/lib/auth/server';
 import { getStore } from '@/lib/db';
-import { enforceRateLimit } from '@/lib/ratelimit';
 import { formatContext, retrieve } from '@/lib/rag/retrieve';
 
 // Tool execution talks to Supabase, so this handler needs the Node runtime.
@@ -17,29 +15,10 @@ export const maxDuration = 30;
 const MAX_STEPS = 5;
 
 export async function POST(request: Request, { params }: { params: Promise<{ agent: string }> }) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-  }
-
   const { agent: agentParam } = await params;
   const agent = resolveAgent(agentParam);
   if (!agent) {
     return NextResponse.json({ error: `Unknown agent "${agentParam}".` }, { status: 404 });
-  }
-
-  const limit = await enforceRateLimit(`${session.email}:${agent.id}`);
-  if (!limit.success) {
-    return NextResponse.json(
-      {
-        error: `Rate limit reached for the ${agent.name} agent. Try again shortly.`,
-        reset: limit.reset,
-      },
-      {
-        status: 429,
-        headers: { 'retry-after': String(Math.ceil((limit.reset - Date.now()) / 1000)) },
-      },
-    );
   }
 
   let messages: UIMessage[];

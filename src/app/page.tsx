@@ -1,8 +1,5 @@
 import { redirect } from 'next/navigation';
 
-import { getSession } from '@/lib/auth/server';
-
-export default async function RootPage() {
-  const session = await getSession();
-  redirect(session ? '/fitness' : '/signin');
+export default function RootPage() {
+  redirect('/fitness');
 }

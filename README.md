@@ -17,7 +17,7 @@ The fitness agent cannot read work documents even by accident. Retrieval takes t
 `createFallbackModel` implements the AI SDK's provider interface and wraps Groq → Gemini. `streamText`, tool execution and the UI stream protocol are all unaware a swap happened. It covers two distinct failure modes: the call that never connects, and the call that connects then errors before emitting content. Once real content is flowing, a mid-stream failure is _surfaced_ rather than silently restarted — re-running a partially executed tool chain is worse than a visible error.
 
 **3. Every external dependency has a working fallback.**
-No provider key, no database, no Redis? The app still boots, builds, passes its whole test suite and serves a browsable demo. Inference falls back to a scripted model that implements the real provider interface, embeddings fall back to a deterministic lexical embedder, storage falls back to a process-local store, rate limiting falls back to an in-process window. This is why the public deployment is browsable and why CI can run end-to-end tests with zero secrets — the tests exercise the production code path, not a mocked-out shortcut.
+No provider key, no database? The app still boots, builds, passes its whole test suite and serves a fully working demo. Inference falls back to a scripted model that implements the real provider interface, embeddings fall back to a deterministic lexical embedder, storage falls back to a process-local store. This is why CI can run end-to-end tests with zero secrets — the tests exercise the production code path, not a mocked-out shortcut.
 
 **4. The Prompt Inspector.**
 A docked panel showing the live system prompt driving the active agent, the tool signatures in scope, which provider answered, whether a fallback fired, and the exact chunks retrieval pulled with their similarity scores. It is a genuine debugging aid — and it makes the prompt engineering legible to anyone reading the repo.
@@ -30,35 +30,29 @@ Every tool returns a tagged, typed result that the chat surface renders as a rea
 ## Architecture
 
 ```
-                        ┌──────────────────────────┐
-                        │   Next.js 16 (Vercel)     │
-                        │   App Router · RSC        │
-                        └────────────┬──────────────┘
-                                     │
-                 ┌───────────────────┼───────────────────┐
-                 │                   │                   │
-         ┌───────▼───────┐  ┌────────▼────────┐  ┌───────▼────────┐
-         │  Session gate  │  │  Agent registry  │  │  UI shell      │
-         │  jose JWT +    │  │  explicit tab    │  │  chat + prompt │
-         │  allowlist     │  │  routing (v1)    │  │  inspector     │
-         └────────────────┘  └────────┬─────────┘  └────────────────┘
-                                       │
-                    ┌──────────────────┴──────────────────┐
-                    │                                     │
-           ┌────────▼─────────┐                 ┌─────────▼────────┐
-           │  Fitness Agent    │                 │   Work Agent      │
-           │  own prompt       │                 │   own prompt      │
-           │  3 tools · RAG    │                 │   4 tools · RAG   │
-           └────────┬──────────┘                 └─────────┬─────────┘
-                    │                                      │
-          ┌─────────▼──────────────────────────────────────▼─────────┐
-          │  Shared infra                                             │
-          │  Groq → Gemini fallback chain (provider-level)            │
-          │  Gemini embeddings → local embedder fallback              │
-          │  Supabase Postgres + pgvector → memory store fallback     │
-          │  Upstash Redis → in-process limiter fallback              │
-          └───────────────────────────────────────────────────────────┘
+                 Next.js 16 (Vercel) — App Router · RSC
+                                  │
+                 ┌────────────────┴────────────────┐
+                 │                                 │
+          Agent registry                       UI shell
+      explicit tab routing (v1)         chat + prompt inspector
+                 │
+        ┌────────┴────────┐
+        │                 │
+  Fitness Agent       Work Agent
+  own prompt          own prompt
+  3 tools · RAG       4 tools · RAG
+        │                 │
+        └────────┬────────┘
+                 │
+                 ▼
+             Shared infra
+   Groq → Gemini fallback chain (provider-level)
+   Gemini embeddings → local embedder fallback
+   Supabase Postgres + pgvector → memory store fallback
 ```
+
+No login: this is a single-user tool run for one person, so there is no session gate to draw and no rate limiting layered on top — Groq and Gemini already enforce their own free-tier ceilings, and the fallback chain already treats a 429 from either as a normal reason to hand off to the other.
 
 ---
 
@@ -77,20 +71,18 @@ Training maths (overload steps, volume trends, macro splits) and work heuristics
 
 ## Stack
 
-| Layer          | Choice                                                         | Why                                                                                                    |
-| -------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Framework      | Next.js 16 (App Router), TypeScript strict                     | Deploys natively to Vercel; RSC keeps agent definitions server-side                                    |
-| Streaming      | Vercel AI SDK 7                                                | Token streaming + tool-call UI state, with a provider interface worth wrapping                         |
-| Inference      | Groq (primary) → Gemini (fallback)                             | Groq owns the time-to-first-token budget; Gemini is a different vendor, so an outage is not correlated |
-| Embeddings     | `gemini-embedding-001`, projected to 768 dims                  | One less provider; same width as the local fallback, so no migration when you add the key              |
-| Data + vectors | Supabase Postgres + pgvector                                   | Structured rows and embeddings in one database, no separate vector store to keep in sync               |
-| Type           | Inter Tight · Inter · JetBrains Mono, via `next/font`          | Self-hosted at build time — no render-blocking third-party request, no layout shift                    |
-| Rate limiting  | Upstash Redis                                                  | Free tier, and the provider budgets are the thing worth protecting                                     |
-| Auth           | `jose` JWT session + email allowlist                           | ~120 lines, zero beta dependencies, works unchanged on the edge runtime                                |
-| Tests          | Vitest (108 unit) + Playwright (15 specs × desktop and mobile) |                                                                                                        |
-| CI             | GitHub Actions                                                 | Format, lint, types, unit, then a full e2e run against a production build                              |
+| Layer          | Choice                                                        | Why                                                                                                    |
+| -------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Framework      | Next.js 16 (App Router), TypeScript strict                    | Deploys natively to Vercel; RSC keeps agent definitions server-side                                    |
+| Streaming      | Vercel AI SDK 7                                               | Token streaming + tool-call UI state, with a provider interface worth wrapping                         |
+| Inference      | Groq (primary) → Gemini (fallback)                            | Groq owns the time-to-first-token budget; Gemini is a different vendor, so an outage is not correlated |
+| Embeddings     | `gemini-embedding-001`, projected to 768 dims                 | One less provider; same width as the local fallback, so no migration when you add the key              |
+| Data + vectors | Supabase Postgres + pgvector                                  | Structured rows and embeddings in one database, no separate vector store to keep in sync               |
+| Type           | Inter Tight · Inter · JetBrains Mono, via `next/font`         | Self-hosted at build time — no render-blocking third-party request, no layout shift                    |
+| Tests          | Vitest (91 unit) + Playwright (13 specs × desktop and mobile) |                                                                                                        |
+| CI             | GitHub Actions                                                | Format, lint, types, unit, then a full e2e run against a production build                              |
 
-**On auth:** the original plan called for NextAuth. For a single-user app whose entire requirement is "one allowlisted email plus a passcode", a signed cookie via `jose` — the library NextAuth itself uses — is smaller, has no beta surface, needs no OAuth provider to be useful, and is directly testable. The trade is real: no social login and no multi-user path without replacing it. For v1 that was the right side of the trade.
+**No auth, deliberately.** This is a single-user tool run by one person for their own training log and task board — there is no second user to gate out, so a login screen would be friction with nothing behind it. Groq and Gemini already enforce their own free-tier rate limits and the fallback chain already treats their 429s as a normal handoff signal, so Cannon does not add a second limiter on top.
 
 ---
 
@@ -101,7 +93,7 @@ npm install
 npm run dev          # http://localhost:3000 — works with zero configuration
 ```
 
-With no `.env` the app runs in open demo mode: enter any email, get a scoped guest session, and talk to seeded fitness and work data. Copy `.env.example` to `.env.local` and fill in whichever backends you want to make real.
+With no `.env` at all, `/` redirects straight into the fitness desk with seeded fitness and work data — no sign-in step. Copy `.env.example` to `.env.local` and fill in whichever backends you want to make real.
 
 ```bash
 npm run verify       # format check, lint, typecheck, unit tests
@@ -112,10 +104,11 @@ npm run test:e2e     # Playwright against a production build
 
 ### Deploying
 
-1. Import the repository into Vercel.
-2. Set `CANNON_AUTH_SECRET` (`openssl rand -base64 32`) — always.
-3. Set `CANNON_AUTH_PASSCODE` and `CANNON_ALLOWED_EMAILS` to close the open demo and make it single-user.
-4. Add provider and Supabase keys as you get them. Apply `supabase/schema.sql` before setting the Supabase variables.
+1. Import the repository into Vercel. No required environment variables — it deploys and works immediately.
+2. Add `GROQ_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` when you want real inference instead of the simulated model.
+3. Add `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` when you want durable storage instead of the in-memory store. Apply `supabase/schema.sql` first.
+
+There is no passcode or allowlist to configure — anyone with the URL can use the deployment.
 
 ---
 
@@ -140,12 +133,11 @@ Verified at 375px, 768px, 1024px, 1440px and 2200px. The rail collapses to a flo
 ## Testing
 
 ```
-108 unit tests   tools and training maths, RAG scoping, chunking, the fallback
-                 chain's four failure modes, auth and token tampering, the rate
-                 limiter's window, store filters and ranking
- 15 e2e specs    run twice (desktop + mobile): the auth gate, both agents'
-                 full tool loops, transcript isolation, the inspector, the
-                 responsive swap, theme persistence, horizontal overflow
+91 unit tests   tools and training maths, RAG scoping, chunking, the fallback
+                chain's four failure modes, store filters and ranking
+13 e2e specs    run twice (desktop + mobile): both agents' full tool loops,
+                transcript isolation, the inspector, the responsive swap,
+                theme persistence, horizontal overflow
 ```
 
 The e2e suite runs a real production build with no provider keys, so every layer except token generation is the production path.
@@ -154,6 +146,8 @@ The e2e suite runs a real production build with no provider keys, so every layer
 
 ## Known limits
 
+- **No login.** Anyone with the deployed URL can read and write your fitness and work data. Acceptable for a personal tool with an unlisted URL; not something to hand to anyone else without adding a gate back.
+- **No rate limiting of its own.** Relies entirely on Groq/Gemini's own free-tier ceilings and the fallback chain's handling of their 429s. Fine for one person; would need revisiting if the URL ever became widely shared.
 - **Supabase free tier** pauses after a week of inactivity and caps at 500MB. Fine for one person; worth knowing before you assume the demo is broken.
 - **Without Supabase**, the memory store lives for the life of a warm serverless instance. Deliberate, and stated in the UI — the header pill reads `memory` rather than `supabase`.
 - **No auto-routing in v1.** Agent selection is explicit, via tabs. A classifier that guesses wrong at 11pm is worse than a tab, and there is no usage data yet to justify one.
