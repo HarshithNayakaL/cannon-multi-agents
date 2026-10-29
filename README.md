@@ -2,6 +2,8 @@
 
 A personal multi-agent assistant where each domain gets a dedicated specialist — its own persona, its own system prompt, its own tools and its own retrieval scope — instead of one generalist chatbot wearing hats. Four desks ship with it. The rest you type into existence.
 
+**Case study:** [harshith-nayaka-l-portfolio.vercel.app/work/cannon](https://harshith-nayaka-l-portfolio.vercel.app/work/cannon): the problem, the architecture and the engineering decisions behind Cannon.
+
 Built to be used daily, not demoed once. The fitness desk holds real training data, the work desk a real task board, the finance desk real spend, the learning desk a real reading queue. The portfolio artifact is a by-product of a tool that had to exist anyway.
 
 > **Cannon is domain specialisation, not task orchestration.** Its sibling project, Maestro, splits a _single_ task across collaborating roles (Thinker / Worker / Verifier / Synthesiser). Cannon runs _independent_ experts that share infrastructure and deliberately do not share context. Different architecture, different problem.
