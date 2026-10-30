@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { JetBrains_Mono, Poppins } from 'next/font/google';
+import localFont from 'next/font/local';
 
 import './globals.css';
 
@@ -18,19 +18,31 @@ import './globals.css';
  * JetBrains Mono is reserved for values a machine produced — tool names, ids,
  * model chains, similarity scores — so monospace stays a signal rather than a
  * texture.
+ *
+ * Both are self-hosted (latin subset, from Fontsource, SIL OFL 1.1) rather
+ * than pulled through next/font/google: that loader fetches from Google at
+ * build time, and a change in the CSS Google serves broke production builds
+ * with nothing in this repo having changed.
  */
-const poppins = Poppins({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const poppins = localFont({
+  src: [
+    { path: './fonts/poppins-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/poppins-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/poppins-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
   variable: '--font-poppins',
   display: 'swap',
+  fallback: ['Segoe UI', 'system-ui', 'sans-serif'],
 });
 
-const jetbrains = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const jetbrains = localFont({
+  src: [
+    { path: './fonts/jetbrains-mono-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/jetbrains-mono-latin-500-normal.woff2', weight: '500', style: 'normal' },
+  ],
   variable: '--font-jetbrains',
   display: 'swap',
+  fallback: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
 });
 
 export const metadata: Metadata = {
