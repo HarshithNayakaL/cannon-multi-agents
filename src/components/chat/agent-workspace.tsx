@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { PanelRight } from 'lucide-react';
+import { ChevronDown, PanelRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -13,6 +13,7 @@ import { ModelPicker } from '@/components/chat/model-picker';
 import { ErrorPanel, StreamingIndicator } from '@/components/chat/status-strip';
 import { PromptInspector } from '@/components/inspector/prompt-inspector';
 import { AgentIcon } from '@/components/shell/agent-icon';
+import { DeskSheet } from '@/components/shell/mobile-tab-bar';
 import type { CannonMetadata, CannonUIMessage } from '@/lib/agents/message';
 import type { AgentProfile } from '@/lib/agents/registry';
 import type { ModelInfo } from '@/lib/ai/catalog';
@@ -35,12 +36,15 @@ function useWideViewport(): boolean {
 
 export function AgentWorkspace({
   profile,
+  profiles,
   capabilities,
   models,
   initialModel,
   initialQuery,
 }: {
   profile: AgentProfile;
+  /** Every desk, for the phone header's switcher. */
+  profiles: AgentProfile[];
   capabilities: RuntimeCapabilities;
   /** Catalog entries this deployment actually holds a key for. */
   models: ModelInfo[];
@@ -57,6 +61,7 @@ export function AgentWorkspace({
     initialModel && models.some((entry) => entry.key === initialModel) ? initialModel : undefined,
   );
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   // Docked by default where there is room for a third column; on anything
   // narrower it is a sheet, and a sheet must never open uninvited. Until the
@@ -96,6 +101,13 @@ export function AgentWorkspace({
     useChat<CannonUIMessage>({ id: profile.id, transport });
 
   const busy = status === 'submitted' || status === 'streaming';
+
+  const latestRun = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].role === 'assistant') return messages[index];
+    }
+    return undefined;
+  }, [messages]);
 
   // Follow the stream, but only while the user is already near the bottom —
   // yanking the viewport away from someone re-reading an earlier answer is
@@ -152,13 +164,19 @@ export function AgentWorkspace({
           style={{ borderColor: 'var(--line)' }}
         >
           <header className="mx-auto flex w-full max-w-[52rem] items-center gap-2 py-2 sm:gap-3 sm:py-4 3xl:max-w-[62rem]">
-            <span
-              className="flex size-10 shrink-0 items-center justify-center rounded-[var(--r-md)] md:hidden"
+            {/* On a phone the desk's badge is also the desk switcher: one tap
+                to any other desk without leaving for the tab bar's sheet. */}
+            <button
+              type="button"
+              onClick={() => setSwitcherOpen(true)}
+              aria-label="Switch desk"
+              aria-haspopup="dialog"
+              className="flex h-11 shrink-0 items-center gap-1 rounded-[var(--r-md)] pr-1.5 pl-2.5 md:hidden"
               style={{ background: profile.accentSoft, color: profile.accent }}
-              aria-hidden="true"
             >
               <AgentIcon agent={profile.id} label={profile.name} className="size-[18px]" />
-            </span>
+              <ChevronDown className="size-3.5 opacity-70" aria-hidden="true" />
+            </button>
 
             {/* Short name on a phone, full title once there is room. At 390px
                 "Learning Agent" wraps to two lines and shoves the header
@@ -211,8 +229,13 @@ export function AgentWorkspace({
             {messages.length === 0 ? (
               <EmptyState profile={profile} onPick={send} />
             ) : (
-              messages.map((message) => (
-                <MessageRow key={message.id} message={message} profile={profile} />
+              messages.map((message, index) => (
+                <MessageRow
+                  key={message.id}
+                  message={message}
+                  profile={profile}
+                  live={busy && index === messages.length - 1}
+                />
               ))
             )}
 
@@ -252,7 +275,12 @@ export function AgentWorkspace({
           className="w-[340px] shrink-0 border-l 3xl:w-[380px]"
           style={{ borderColor: 'var(--line)', background: 'var(--bg-panel)' }}
         >
-          <PromptInspector profile={profile} metadata={latestMetadata} />
+          <PromptInspector
+            profile={profile}
+            metadata={latestMetadata}
+            run={latestRun}
+            live={busy}
+          />
         </aside>
       ) : null}
 
@@ -292,6 +320,8 @@ export function AgentWorkspace({
                 <PromptInspector
                   profile={profile}
                   metadata={latestMetadata}
+                  run={latestRun}
+                  live={busy}
                   onClose={() => setInspectorOpen(false)}
                 />
               </div>
@@ -299,6 +329,13 @@ export function AgentWorkspace({
             document.body,
           )
         : null}
+      {switcherOpen ? (
+        <DeskSheet
+          profiles={profiles}
+          pathname={`/${profile.id}`}
+          onClose={() => setSwitcherOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

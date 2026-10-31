@@ -43,10 +43,7 @@ export function Composer({
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="material flex items-end gap-2 !rounded-[var(--r-xl)] p-1.5 sm:p-2"
-    >
+    <form onSubmit={submit} className="ask flex items-end gap-2 p-1.5">
       <textarea
         ref={textarea}
         rows={1}
@@ -55,7 +52,7 @@ export function Composer({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         aria-label="Message the agent"
-        className="scroll max-h-[176px] min-h-[var(--tap)] flex-1 resize-none bg-transparent px-3 py-[0.6rem] text-[1rem] leading-relaxed outline-none"
+        className="scroll max-h-[176px] min-h-[var(--tap)] flex-1 resize-none bg-transparent px-3 py-[0.6rem] text-[1rem] leading-relaxed outline-none focus-visible:outline-none"
       />
 
       {busy ? (

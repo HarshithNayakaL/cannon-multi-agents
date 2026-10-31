@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import { ModelBadges } from '@/components/chat/model-badges';
+import { ModelPicker } from '@/components/chat/model-picker';
 import { AgentIcon } from '@/components/shell/agent-icon';
 import { rankAgents, recommendModel, type AgentMatch } from '@/lib/agents/dispatch';
 import type { AgentProfile } from '@/lib/agents/registry';
@@ -42,6 +43,7 @@ export function DispatchConsole({
   const [query, setQuery] = useState('');
   const [pickedAgent, setPickedAgent] = useState<AgentId | null>(null);
   const [pickedModel, setPickedModel] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Creating an agent is a server round-trip that writes a row, so it needs
   // real pending and error states rather than optimism.
@@ -132,32 +134,53 @@ export function DispatchConsole({
     router.refresh();
   }
 
+  // The verdict shows whenever there is something to open: a desk the scorer
+  // chose for the words typed, or one the user tapped with nothing typed yet.
+  const showVerdict = trimmed.length > 0 || target !== null;
+  const groqOrder = (Object.keys(PROVIDERS) as ProviderId[]).filter((id) =>
+    models.some((entry) => entry.provider === id),
+  );
+
   return (
-    <div className="scroll relative z-10 h-full min-w-0 flex-1 overflow-y-auto px-4 sm:px-10">
-      {/* One column on a phone: ask, verdict, then the field below it.
-          From lg the ask column pins to the left and the field scrolls beside
-          it, so the recommendation never scrolls out of view while you
-          compare desks — on a single column it did, half a screen in. */}
-      <div className="dispatch-page mx-auto w-full max-w-[76rem] pt-[calc(env(safe-area-inset-top)+1.5rem)] sm:pt-14 lg:grid lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:gap-14 xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] xl:gap-20">
-        {/* ---------------- Ask ---------------- */}
-        <div className="lg:sticky lg:top-14 lg:self-start">
-          <header className="enter mb-6 max-w-[42rem] sm:mb-8">
-            <div className="mb-3 flex items-center gap-2 sm:mb-4">
-              <span className="dot" style={{ background: 'var(--accent)' }} aria-hidden="true" />
-              <span className="mono" style={{ color: 'var(--ink-3)' }}>
-                {profiles.length} agents · {models.length || 'no'} models configured
-              </span>
-            </div>
+    <div className="scroll relative z-10 h-full min-w-0 flex-1 overflow-y-auto">
+      <div className="dispatch-page mx-auto w-full max-w-[72rem] px-4 pt-[calc(env(safe-area-inset-top)+1.25rem)] sm:px-8 sm:pt-10 lg:px-12 lg:pt-14">
+        {/* ---------------- Head ---------------- */}
+        <header className="enter mb-5 sm:mb-8">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="dot" style={{ background: 'var(--accent)' }} aria-hidden="true" />
+            <span className="mono" style={{ color: 'var(--ink-3)' }}>
+              {profiles.length} desks · {models.length || 'no'} models
+            </span>
+          </div>
+          <h1 className="t-display">What do you need?</h1>
+          <p className="t-body mt-2 hidden max-w-[56ch] lg:block" style={{ color: 'var(--ink-2)' }}>
+            Say it in your own words. Cannon ranks every desk against it and picks a model for its
+            shape — both shown before anything runs.
+          </p>
+        </header>
 
-            <h1 className="t-display mb-3 sm:mb-4">What do you need?</h1>
-            <p className="t-body max-w-[52ch]" style={{ color: 'var(--ink-2)' }}>
-              Say it in your own words. Cannon picks the desk and the model, and shows you both
-              before anything runs.
-            </p>
-          </header>
+        {/* ---------------- Ask ----------------
+            One form, two homes. Under lg it docks to the bottom of the screen,
+            above the tab bar, where the thumb already is, and the desk list
+            re-ranks above it as you type. From lg it sits at the top of the
+            page and the verdict sits beneath it. */}
+        <form onSubmit={dispatch} className="dispatch-dock" aria-label="Dispatch">
+          <div className="dispatch-dock-inner">
+            {showVerdict ? (
+              <Recommendation
+                target={target}
+                match={agent ? (byId.get(agent) ?? null) : null}
+                modelKey={model}
+                models={models}
+                modelReason={suggestedModel?.reason ?? null}
+                overridden={pickedAgent !== null}
+                onGo={() => dispatch()}
+                onCreate={create}
+                busy={creating}
+              />
+            ) : null}
 
-          <form onSubmit={dispatch} className="enter mb-3">
-            <div className="material flex items-center gap-2 !rounded-[var(--r-xl)] p-1.5 sm:p-2">
+            <div className="ask flex items-center gap-2 p-1.5">
               <input
                 value={query}
                 onChange={(event) => {
@@ -170,7 +193,7 @@ export function DispatchConsole({
                 aria-label="Describe what you need"
                 data-testid="dispatch-input"
                 enterKeyHint="go"
-                className="min-h-[var(--tap)] min-w-0 flex-1 bg-transparent px-3 text-[1rem] outline-none"
+                className="min-h-[var(--tap)] min-w-0 flex-1 bg-transparent px-3 text-[1rem] outline-none focus-visible:outline-none"
               />
               <button
                 type="submit"
@@ -182,119 +205,134 @@ export function DispatchConsole({
                 <ArrowRight className="size-4" aria-hidden="true" />
               </button>
             </div>
-          </form>
+          </div>
+        </form>
 
-          {trimmed.length === 0 ? (
-            <div className="rail-x mb-10 lg:mb-0" aria-label="Examples" role="group">
-              {EXAMPLES.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => setQuery(example)}
-                  className="tag chip lift"
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <Recommendation
-              target={target}
-              match={agent ? (byId.get(agent) ?? null) : null}
-              modelKey={model}
-              models={models}
-              modelReason={suggestedModel?.reason ?? null}
-              overridden={pickedAgent !== null}
-              onGo={() => dispatch()}
-              onCreate={create}
-              busy={creating}
-            />
-          )}
+        {trimmed.length === 0 ? (
+          <div className="rail-x mb-8 lg:mb-10" aria-label="Examples" role="group">
+            {EXAMPLES.map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => setQuery(example)}
+                className="tag chip lift"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-8 lg:mb-10" />
+        )}
 
-          {createError ? (
-            <p className="card t-small mb-6 p-4" role="alert" style={{ color: 'var(--bad)' }}>
-              {createError}
-            </p>
-          ) : null}
-        </div>
+        {createError ? (
+          <p className="card t-small mb-6 p-4" role="alert" style={{ color: 'var(--bad)' }}>
+            {createError}
+          </p>
+        ) : null}
 
         {/* ---------------- The field ---------------- */}
-        <div className="min-w-0">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12">
           <Section
-            title="Agents"
-            note="Each desk has its own prompt, tools and retrieval scope. None can read another's data. If none of them fits, describe what you need above and Cannon will build one."
+            title="Desks"
+            aside={trimmed.length > 0 ? 'ranked for what you typed' : `${profiles.length} desks`}
           >
-            <div className="grid gap-3 sm:grid-cols-2">
+            <ul className="list" data-testid="desk-list">
               {profiles.map((profile) => (
-                <AgentTile
-                  key={profile.id}
-                  profile={profile}
-                  match={byId.get(profile.id) ?? null}
-                  recommended={profile.id === suggestedAgent}
-                  selected={profile.id === agent}
-                  scoring={trimmed.length > 0}
-                  onSelect={() => setPickedAgent(profile.id)}
-                  onDelete={profile.custom ? () => remove(profile) : undefined}
-                />
+                <li key={profile.id}>
+                  <AgentTile
+                    profile={profile}
+                    match={byId.get(profile.id) ?? null}
+                    recommended={profile.id === suggestedAgent}
+                    selected={profile.id === agent}
+                    scoring={trimmed.length > 0}
+                    onSelect={() => setPickedAgent(profile.id)}
+                    onDelete={profile.custom ? () => remove(profile) : undefined}
+                  />
+                </li>
               ))}
-
-              <CreateTile description={trimmed} busy={creating} onCreate={create} />
-            </div>
+              <li>
+                <CreateTile description={trimmed} busy={creating} onCreate={create} />
+              </li>
+            </ul>
           </Section>
 
-          <Section
-            title="Providers"
-            note="A pick moves that model to the front of the fallback chain. The rest stays behind it."
-          >
-            {models.length === 0 ? (
-              <p className="card t-small p-5">
-                No provider key is set, so inference is simulated against a scripted
-                pattern-matcher. Tools, retrieval and persistence still run for real. Set{' '}
-                <span className="mono">GROQ_API_KEY</span> or{' '}
-                <span className="mono">GOOGLE_GENERATIVE_AI_API_KEY</span> to use a real model.
-              </p>
-            ) : (
-              <div className="space-y-6">
-                {(Object.keys(PROVIDERS) as ProviderId[]).map((providerId) => {
-                  const owned = models.filter((entry) => entry.provider === providerId);
-                  if (owned.length === 0) return null;
-                  const provider = PROVIDERS[providerId];
+          {/* Phone and tablet: the model is one line that opens a sheet. A grid
+              of model tiles there pushed the desks a screen and a half down. */}
+          <div className="lg:hidden">
+            <Section title="Model" aside={pickedModel ? 'your pick' : 'auto'}>
+              <div className="card flex items-center gap-3 p-3 pl-4">
+                <p className="t-small min-w-0 flex-1 truncate">
+                  {models.length === 0
+                    ? 'Simulated — no provider key is set.'
+                    : pickedModel
+                      ? (models.find((entry) => entry.key === pickedModel)?.name ?? 'Auto')
+                      : suggestedModel
+                        ? `Auto · ${suggestedModel.model.name}`
+                        : 'Auto — Groq first, Gemini behind it'}
+                </p>
+                <ModelPicker
+                  models={models}
+                  value={pickedModel ?? undefined}
+                  onChange={(key) => setPickedModel(key ?? null)}
+                  open={pickerOpen}
+                  onOpenChange={setPickerOpen}
+                />
+              </div>
+            </Section>
+          </div>
 
-                  return (
-                    <div key={providerId}>
-                      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                        <span className="flex items-center gap-2">
+          <div className="hidden lg:block">
+            <Section title="Models" aside="a pick goes to the front of the fallback chain">
+              {models.length === 0 ? (
+                <p className="card t-small p-5">
+                  No provider key is set, so inference is simulated against a scripted
+                  pattern-matcher. Tools, retrieval and persistence still run for real. Set{' '}
+                  <span className="mono">GROQ_API_KEY</span> or{' '}
+                  <span className="mono">GOOGLE_GENERATIVE_AI_API_KEY</span> to use a real model.
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {groqOrder.map((providerId) => {
+                    const provider = PROVIDERS[providerId];
+                    return (
+                      <div key={providerId}>
+                        <div className="mb-2 flex items-center gap-2">
                           <span
                             className="dot"
                             style={{ background: provider.accent }}
                             aria-hidden="true"
                           />
-                          <h3 className="t-subtitle">{provider.name}</h3>
-                        </span>
-                        <span className="t-label">{provider.blurb}</span>
+                          <h3 className="t-label" style={{ color: 'var(--ink-2)' }}>
+                            {provider.name}
+                          </h3>
+                          <span className="t-label truncate">{provider.blurb}</span>
+                        </div>
+                        <ul className="list">
+                          {models
+                            .filter((entry) => entry.provider === providerId)
+                            .map((entry) => (
+                              <li key={entry.key}>
+                                <ModelTile
+                                  model={entry}
+                                  selected={entry.key === model}
+                                  recommended={entry.key === suggestedModel?.model.key}
+                                  onSelect={() =>
+                                    setPickedModel((current) =>
+                                      current === entry.key ? null : entry.key,
+                                    )
+                                  }
+                                />
+                              </li>
+                            ))}
+                        </ul>
                       </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                        {owned.map((entry) => (
-                          <ModelTile
-                            key={entry.key}
-                            model={entry}
-                            selected={entry.key === model}
-                            recommended={entry.key === suggestedModel?.model.key}
-                            onSelect={() =>
-                              setPickedModel((current) =>
-                                current === entry.key ? null : entry.key,
-                              )
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Section>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
+          </div>
         </div>
       </div>
     </div>
@@ -303,18 +341,18 @@ export function DispatchConsole({
 
 function Section({
   title,
-  note,
+  aside,
   children,
 }: {
   title: string;
-  note: string;
+  aside?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-10 first:mt-0 sm:mt-12 lg:first:mt-0">
-      <div className="mb-4">
-        <h2 className="t-title mb-1">{title}</h2>
-        <p className="t-small max-w-[60ch]">{note}</p>
+    <section>
+      <div className="mb-3 flex items-baseline gap-3">
+        <h2 className="eyebrow">{title}</h2>
+        {aside ? <span className="t-label truncate">{aside}</span> : null}
       </div>
       {children}
     </section>
@@ -322,9 +360,9 @@ function Section({
 }
 
 /**
- * The verdict strip. It states the desk, the model and — critically — *why*,
+ * The verdict. It states the desk, the model and — critically — *why*,
  * because a recommendation you cannot interrogate is just a guess with better
- * typography.
+ * typography. Compact on a phone, where it rides in the dock above the input.
  */
 function Recommendation({
   target,
@@ -351,16 +389,15 @@ function Recommendation({
 
   if (!target) {
     return (
-      <div className="card enter mb-10 flex flex-col gap-4 p-4 sm:p-5 lg:mb-0">
-        <p className="t-small">
-          No existing desk owns that vocabulary. Build one for it, or pick a desk below — the scorer
-          is a starting point, not a gate.
+      <div className="verdict enter flex items-center gap-3 p-3 pl-4">
+        <p className="t-small min-w-0 flex-1">
+          No desk owns that vocabulary. Build one for it, or pick a desk.
         </p>
         <button
           type="button"
           onClick={onCreate}
           disabled={busy}
-          className="btn btn-primary min-h-[var(--tap-primary)] w-full sm:w-auto sm:self-start"
+          className="btn btn-primary shrink-0 !px-4"
           data-testid="create-from-recommendation"
         >
           {busy ? (
@@ -368,21 +405,24 @@ function Recommendation({
           ) : (
             <Plus className="size-4" aria-hidden="true" />
           )}
-          {busy ? 'Building…' : 'Build this agent'}
+          {busy ? 'Building…' : 'Build'}
         </button>
       </div>
     );
   }
 
+  const why = match && match.matched.length > 0 ? match.matched.slice(0, 4).join(', ') : null;
+
   return (
     <div
-      className="card enter mb-10 overflow-hidden lg:mb-0"
+      className="verdict enter overflow-hidden"
       data-testid="dispatch-recommendation"
       data-agent={target.id}
+      style={{ '--desk': target.accent } as React.CSSProperties}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:p-5">
+      <div className="flex items-center gap-3 p-3 pl-4 sm:p-4">
         <span
-          className="flex size-11 shrink-0 items-center justify-center rounded-[var(--r-md)]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-[var(--r-md)]"
           style={{ background: target.accentSoft, color: target.accent }}
           aria-hidden="true"
         >
@@ -390,50 +430,55 @@ function Recommendation({
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="mb-0.5 flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="t-label">{overridden ? 'Your pick' : 'Recommended'}</span>
             {!overridden ? (
               <Sparkles className="size-3" style={{ color: target.accent }} aria-hidden="true" />
             ) : null}
           </div>
-          <h2 className="t-subtitle truncate">{target.title}</h2>
+          <h2 className="truncate text-[0.9375rem] leading-snug font-semibold">{target.title}</h2>
+          {/* One line on a phone; the full reasoning gets its own rows above. */}
+          <p className="t-label truncate sm:hidden">
+            {why ? (
+              <>
+                matched <span style={{ color: target.accent }}>{why}</span>
+              </>
+            ) : model ? (
+              model.name
+            ) : (
+              'simulated model'
+            )}
+          </p>
         </div>
 
-        {/* Full width on a phone: it is the one action on this screen, and
-            the bottom of the card is where the thumb already is. */}
-        <button
-          type="button"
-          onClick={onGo}
-          className="btn btn-primary min-h-[var(--tap-primary)] w-full shrink-0 sm:w-auto lg:w-full xl:w-auto"
-        >
+        <button type="button" onClick={onGo} className="btn btn-primary shrink-0 !px-4">
           Open
           <ArrowRight className="size-4" aria-hidden="true" />
         </button>
       </div>
 
-      <div
-        className="grid gap-x-6 gap-y-3 border-t px-4 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-1"
+      <dl
+        className="hidden gap-x-8 gap-y-2 border-t px-4 py-3 sm:grid sm:grid-cols-2"
         style={{ borderColor: 'var(--line)' }}
       >
-        <div>
-          <div className="t-label mb-1">Why this desk</div>
-          <p className="t-small">
-            {match && match.matched.length > 0 ? (
+        <div className="min-w-0">
+          <dt className="t-label">Why this desk</dt>
+          <dd className="t-small truncate">
+            {why ? (
               <>
                 matched{' '}
                 <span className="mono" style={{ color: target.accent }}>
-                  {match.matched.slice(0, 5).join(', ')}
+                  {why}
                 </span>
               </>
             ) : (
               'Chosen by you rather than by the scorer.'
             )}
-          </p>
+          </dd>
         </div>
-
-        <div>
-          <div className="t-label mb-1">Model</div>
-          <p className="t-small">
+        <div className="min-w-0">
+          <dt className="t-label">Model</dt>
+          <dd className="t-small truncate">
             {model ? (
               <>
                 <span style={{ color: 'var(--ink)' }}>{model.name}</span>
@@ -442,13 +487,18 @@ function Recommendation({
             ) : (
               'Simulated — no provider key is set.'
             )}
-          </p>
+          </dd>
         </div>
-      </div>
+      </dl>
     </div>
   );
 }
 
+/**
+ * A desk as a row, not a card. Four equal cards said the desks were
+ * interchangeable; a ranked list says which one fits, and the match bar fills
+ * as you type so the routing is visible while it happens.
+ */
 function AgentTile({
   profile,
   match,
@@ -467,103 +517,80 @@ function AgentTile({
   /** Present only for created agents; the four coded desks cannot be removed. */
   onDelete?: () => void;
 }) {
-  // Delete sits outside the select button rather than inside it — a button
-  // nested in a button is invalid, and the browser's behaviour when you click
-  // the inner one is not something to rely on.
-  return (
-    <div className="relative">
-      {onDelete ? (
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label={`Delete the ${profile.name} agent`}
-          data-testid="delete-agent"
-          className="icon-btn absolute top-2 right-2 z-10"
-        >
-          <Trash2 className="size-3.5" />
-        </button>
-      ) : null}
+  const percent = Math.round((match?.confidence ?? 0) * 100);
 
+  // Delete sits beside the select button rather than inside it — a button
+  // nested in a button is invalid.
+  return (
+    <div className="row-wrap" style={{ '--desk': profile.accent } as React.CSSProperties}>
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
         data-testid="agent-tile"
         data-agent={profile.id}
-        className="card lift flex h-full w-full flex-col items-start p-4 text-left sm:p-5"
-        style={selected ? { borderColor: profile.accent } : undefined}
+        className="row"
       >
-        <div className="mb-3 flex w-full items-center gap-3">
-          <span
-            className="flex size-9 shrink-0 items-center justify-center rounded-[var(--r-md)]"
-            style={{ background: profile.accentSoft, color: profile.accent }}
-            aria-hidden="true"
-          >
-            <AgentIcon agent={profile.id} label={profile.name} className="size-[18px]" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="t-subtitle block truncate">{profile.name}</span>
-            <span className="t-label block truncate">
-              {profile.toolSummaries.length} tools{profile.custom ? ' · created' : ''}
-            </span>
-          </span>
-          {/* Nudged left of the delete button when there is one. */}
-          <span className={onDelete ? 'mr-10' : undefined}>
+        <span
+          className="flex size-10 shrink-0 items-center justify-center rounded-[var(--r-md)]"
+          style={{ background: profile.accentSoft, color: profile.accent }}
+          aria-hidden="true"
+        >
+          <AgentIcon agent={profile.id} label={profile.name} className="size-5" />
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[0.9375rem] font-semibold">{profile.name}</span>
             {recommended ? (
-              <Sparkles className="size-4 shrink-0" style={{ color: profile.accent }} />
+              <Sparkles className="size-3.5 shrink-0" style={{ color: profile.accent }} />
             ) : selected ? (
-              <Check className="size-4 shrink-0" style={{ color: profile.accent }} />
+              <Check className="size-3.5 shrink-0" style={{ color: profile.accent }} />
             ) : null}
           </span>
-        </div>
+          <span className="t-label block truncate">
+            {scoring && match && match.matched.length > 0
+              ? `matched ${match.matched.slice(0, 3).join(' · ')}`
+              : profile.tagline}
+          </span>
+        </span>
 
-        <p className="t-small mb-3 flex-1">{profile.tagline}</p>
-
-        {/* The confidence bar only appears once there is a query to be confident
-          about. Rendering it empty would imply a score of zero rather than
-          "nothing asked yet". */}
+        {/* Shown only once there is a query: an empty bar would claim a score
+            of zero rather than "nothing asked yet". */}
         {scoring ? (
-          <div className="w-full">
-            <div className="mb-1 flex items-baseline justify-between gap-2">
-              <span className="mono truncate" style={{ color: 'var(--ink-3)' }}>
-                {match && match.matched.length > 0
-                  ? match.matched.slice(0, 3).join(' · ')
-                  : 'no match'}
-              </span>
-              <span className="mono shrink-0" style={{ color: 'var(--ink-3)' }}>
-                {Math.round((match?.confidence ?? 0) * 100)}%
-              </span>
-            </div>
-            <div
-              className="h-[3px] w-full overflow-hidden rounded-[var(--r-pill)]"
-              style={{ background: 'var(--line)' }}
-              aria-hidden="true"
-            >
-              <div
-                className="h-full rounded-[var(--r-pill)] transition-[width] duration-300"
-                style={{
-                  width: `${Math.round((match?.confidence ?? 0) * 100)}%`,
-                  background: profile.accent,
-                }}
-              />
-            </div>
-          </div>
+          <span className="flex w-[5.5rem] shrink-0 items-center gap-2" aria-hidden="true">
+            <span className="meter">
+              <span style={{ width: `${percent}%`, background: profile.accent }} />
+            </span>
+            <span className="mono w-8 text-right" style={{ color: 'var(--ink-3)' }}>
+              {percent > 0 ? `${percent}%` : '–'}
+            </span>
+          </span>
         ) : (
-          <span className="mono truncate" style={{ color: 'var(--ink-3)' }}>
-            {profile.ragSources.join(' · ')}
+          <span className="mono hidden shrink-0 sm:inline" style={{ color: 'var(--ink-3)' }}>
+            {profile.toolSummaries.length} tools{profile.custom ? ' · made' : ''}
           </span>
         )}
       </button>
+
+      {onDelete ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={`Delete the ${profile.name} agent`}
+          data-testid="delete-agent"
+          className="icon-btn shrink-0"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      ) : null}
     </div>
   );
 }
 
 /**
- * The tile that turns the typed sentence into a desk.
- *
- * It sits in the grid with the existing agents rather than in a separate
- * section, because "make a new one" is a peer of "use an existing one", not a
- * settings action buried elsewhere.
+ * Turns the typed sentence into a desk. It sits in the list with the existing
+ * desks because "make a new one" is a peer of "use an existing one".
  */
 function CreateTile({
   description,
@@ -577,44 +604,35 @@ function CreateTile({
   const ready = description.length >= 3;
 
   return (
-    <button
-      type="button"
-      onClick={onCreate}
-      disabled={!ready || busy}
-      data-testid="create-tile"
-      className="lift flex h-full flex-col items-start rounded-[var(--r-lg)] p-4 text-left sm:p-5"
-      style={{
-        border: '1px dashed var(--line-strong)',
-        opacity: ready || busy ? 1 : 0.6,
-        cursor: ready && !busy ? 'pointer' : 'default',
-      }}
-    >
-      <div className="mb-3 flex w-full items-center gap-3">
+    <div className="row-wrap">
+      <button
+        type="button"
+        onClick={onCreate}
+        disabled={!ready || busy}
+        data-testid="create-tile"
+        className="row row-dashed"
+      >
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-[var(--r-md)]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-[var(--r-md)]"
           style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
           aria-hidden="true"
         >
-          {busy ? (
-            <Loader2 className="size-[18px] animate-spin" />
-          ) : (
-            <Plus className="size-[18px]" />
-          )}
+          {busy ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="t-subtitle block truncate">{busy ? 'Building…' : 'New agent'}</span>
-          <span className="t-label block truncate">remember · recall</span>
+          <span className="block truncate text-[0.9375rem] font-semibold">
+            {busy ? 'Building…' : 'New desk'}
+          </span>
+          <span className="t-label block truncate">
+            {busy
+              ? 'Writing its prompt, vocabulary and memory'
+              : ready
+                ? `for “${description}”`
+                : 'Type what it is for above'}
+          </span>
         </span>
-      </div>
-
-      <p className="t-small flex-1">
-        {busy
-          ? 'Writing its prompt, picking its vocabulary and giving it its own memory.'
-          : ready
-            ? `Build a desk for “${description.length > 64 ? `${description.slice(0, 63)}…` : description}”.`
-            : 'Describe a domain above and Cannon will write the agent for it — its own prompt, its own memory, its own retrieval scope.'}
-      </p>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -630,40 +648,39 @@ function ModelTile({
   onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      data-testid="model-tile"
-      data-model={model.key}
-      className="card lift flex flex-col items-start p-4 text-left"
-      style={selected ? { borderColor: 'var(--accent)' } : undefined}
-    >
-      <div className="mb-1.5 flex w-full items-center gap-2">
-        <span className="t-subtitle min-w-0 truncate">{model.name}</span>
-        <span className="flex flex-1 items-center gap-1.5">
-          <ModelBadges model={model} />
-        </span>
-        {recommended ? (
-          <Sparkles className="size-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-        ) : selected ? (
-          <Check className="size-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-        ) : null}
-      </div>
-
-      <p className="t-small mb-3 flex-1">{model.strength}</p>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {model.speed ? (
-          <span className="mono inline-flex items-center gap-1" style={{ color: 'var(--ink-3)' }}>
-            <Zap className="size-3" aria-hidden="true" />
-            {model.speed} tok/s
+    <div className="row-wrap">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        data-testid="model-tile"
+        data-model={model.key}
+        className="row !min-h-[3.25rem] !py-2"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[0.9375rem] font-medium">{model.name}</span>
+            <ModelBadges model={model} />
+            {recommended ? (
+              <Sparkles className="size-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+            ) : selected ? (
+              <Check className="size-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+            ) : null}
           </span>
-        ) : null}
-        <span className="mono" style={{ color: 'var(--ink-3)' }}>
-          {formatContext(model.contextTokens)} ctx
+          <span className="t-label block truncate">{model.strength}</span>
         </span>
-      </div>
-    </button>
+        <span className="flex shrink-0 flex-col items-end">
+          {model.speed ? (
+            <span className="mono inline-flex items-center gap-1" style={{ color: 'var(--ink-2)' }}>
+              <Zap className="size-3" aria-hidden="true" />
+              {model.speed}
+            </span>
+          ) : null}
+          <span className="mono" style={{ color: 'var(--ink-3)' }}>
+            {formatContext(model.contextTokens)}
+          </span>
+        </span>
+      </button>
+    </div>
   );
 }

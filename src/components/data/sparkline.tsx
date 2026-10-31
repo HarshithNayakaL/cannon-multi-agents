@@ -52,6 +52,7 @@ export function Sparkline({
         style={{ height: '100%', width: '100%', display: 'block' }}
         role="img"
         aria-label={description}
+        className="draw"
       >
         <line
           x1="0"
@@ -63,7 +64,6 @@ export function Sparkline({
           vectorEffect="non-scaling-stroke"
         />
         <polyline
-          className="draw"
           points={line}
           fill="none"
           stroke={accent}

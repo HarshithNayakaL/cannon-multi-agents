@@ -2,7 +2,8 @@
 
 import { X } from 'lucide-react';
 
-import type { CannonMetadata } from '@/lib/agents/message';
+import { RunSteps, runSteps } from '@/components/chat/run-trail';
+import type { CannonMetadata, CannonUIMessage } from '@/lib/agents/message';
 import type { AgentProfile } from '@/lib/agents/registry';
 
 /**
@@ -20,10 +21,15 @@ import type { AgentProfile } from '@/lib/agents/registry';
 export function PromptInspector({
   profile,
   metadata,
+  run,
+  live = false,
   onClose,
 }: {
   profile: AgentProfile;
   metadata?: CannonMetadata;
+  /** The latest assistant turn, shown step by step at the top. */
+  run?: CannonUIMessage;
+  live?: boolean;
   onClose?: () => void;
 }) {
   return (
@@ -34,18 +40,21 @@ export function PromptInspector({
       >
         <h2 className="t-label flex-1">Inspector</h2>
         {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close inspector"
-            className="icon-btn size-7"
-          >
+          <button type="button" onClick={onClose} aria-label="Close inspector" className="icon-btn">
             <X className="size-3.5" />
           </button>
         ) : null}
       </header>
 
       <div className="scroll flex-1 overflow-y-auto">
+        <Section title={live ? 'This run · live' : 'Last run'}>
+          {run ? (
+            <RunSteps steps={runSteps(run, live)} />
+          ) : (
+            <Hint>Send a message to watch the run: retrieval, each tool, and who answered.</Hint>
+          )}
+        </Section>
+
         <Section title="Model chain">
           {metadata?.chain?.length ? (
             <ol className="space-y-2">

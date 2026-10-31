@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { AgentWorkspace } from '@/components/chat/agent-workspace';
-import { resolveAgent, toProfile } from '@/lib/agents/registry';
+import { listProfiles, resolveAgent, toProfile } from '@/lib/agents/registry';
 import { listModels } from '@/lib/ai/live-models';
 import { describeCapabilities } from '@/lib/env';
 
@@ -41,11 +41,12 @@ export default async function AgentRoute({
   if (!agent) notFound();
 
   const search = await searchParams;
-  const { models } = await listModels();
+  const [{ models }, profiles] = await Promise.all([listModels(), listProfiles()]);
 
   return (
     <AgentWorkspace
       profile={toProfile(agent)}
+      profiles={profiles}
       capabilities={describeCapabilities()}
       models={models}
       initialQuery={one(search.q)}

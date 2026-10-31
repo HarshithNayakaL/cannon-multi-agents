@@ -119,7 +119,7 @@ function TabLink({
  * Every desk, as a sheet. Also where the theme toggle lives on a phone — it
  * is a once-a-month setting, and it was occupying a sixth of the tab bar.
  */
-function DeskSheet({
+export function DeskSheet({
   profiles,
   pathname,
   onClose,

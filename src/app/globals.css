@@ -26,10 +26,10 @@
 
   /* Canvas: a graphite ramp, not pure black. Pure black kills the shadows
      that carry depth. */
-  --bg-base: #0b0c0f;
-  --bg-panel: #15171c;
-  --bg-raise: #1d2027;
-  --bg-sunken: #0f1114;
+  --bg-base: #0e0f12;
+  --bg-panel: #16181d;
+  --bg-raise: #1f2229;
+  --bg-sunken: #121418;
 
   /* Materials — translucent surfaces that sit over content.
      0.9, not 0.72: the tab bar and composer sit permanently over a scrolling
@@ -111,10 +111,10 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg-base: #f5f5f7;
+  --bg-base: #f2f3f5;
   --bg-panel: #ffffff;
-  --bg-raise: #f0f0f3;
-  --bg-sunken: #fafafc;
+  --bg-raise: #eef0f3;
+  --bg-sunken: #f8f9fa;
 
   --material: rgba(255, 255, 255, 0.92);
   --material-thick: rgba(255, 255, 255, 0.98);
@@ -171,6 +171,12 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: var(--r-sm);
+}
+
+/* A field inside the ask bar is ringed by the bar itself (:focus-within), so
+   a second outline on the field drew a box inside a box. */
+.ask :is(input, textarea):focus-visible {
+  outline: none;
 }
 
 /* Component classes live in @layer components so Tailwind's utilities —
@@ -263,8 +269,8 @@ body {
     pointer-events: none;
     background:
       radial-gradient(
-        80rem 44rem at 50% -20rem,
-        color-mix(in oklab, var(--accent) 13%, transparent),
+        70rem 30rem at 50% -18rem,
+        color-mix(in oklab, var(--accent) 9%, transparent),
         transparent 68%
       ),
       var(--bg-base);
@@ -645,15 +651,228 @@ body {
     line-height: 1.2;
   }
 
-  /* Scrolling pages end clear of the tab bar on a phone. */
+  /* =========================================================================
+     Dispatch
+     ========================================================================= */
+
+  /* Clears the docked ask bar (and its verdict) plus the tab bar below lg. */
   .dispatch-page {
-    padding-bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-h) + 2rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-h) + 13rem);
   }
 
-  @media (min-width: 768px) {
+  @media (min-width: 1024px) {
     .dispatch-page {
       padding-bottom: 4rem;
     }
+  }
+
+  /* Under lg the ask bar docks above the tab bar, in thumb reach. The fade
+     behind it keeps rows scrolling underneath legible right up to its edge
+     without a frosted panel. */
+  .dispatch-dock {
+    position: fixed;
+    inset-inline: 0;
+    bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-h));
+    z-index: 25;
+    padding: 1.25rem var(--s-4) var(--s-2);
+    background: linear-gradient(to top, var(--bg-base) 62%, transparent);
+    transition: bottom var(--base) var(--ease-out);
+  }
+
+  @media (min-width: 768px) {
+    .dispatch-dock {
+      left: 88px;
+      padding-inline: var(--s-6);
+      padding-bottom: var(--s-4);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .dispatch-dock {
+      position: static;
+      padding: 0;
+      margin-bottom: var(--s-3);
+      background: none;
+    }
+  }
+
+  .dispatch-dock-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    max-width: 40rem;
+    margin-inline: auto;
+  }
+
+  @media (min-width: 1024px) {
+    .dispatch-dock-inner {
+      flex-direction: column-reverse;
+      max-width: none;
+      gap: var(--s-3);
+    }
+  }
+
+  /* The one input that matters on a screen. Solid, not glass. */
+  .ask {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-xl);
+    box-shadow: var(--e-2);
+    transition:
+      border-color var(--fast) var(--ease),
+      box-shadow var(--fast) var(--ease);
+  }
+
+  .ask:focus-within {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 4px var(--accent-soft),
+      var(--e-2);
+  }
+
+  .verdict {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--e-2);
+  }
+
+  .verdict::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 3px;
+    background: var(--desk, var(--accent));
+  }
+
+  /* Section label: small, tracked, upper — a signpost, not a headline. */
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  /* =========================================================================
+     Lists — rows inside one hairline group, not a grid of floating cards
+     ========================================================================= */
+
+  .list {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+
+  .list > li + li {
+    border-top: 1px solid var(--line);
+  }
+
+  .row-wrap {
+    display: flex;
+    align-items: center;
+    padding-right: var(--s-1);
+  }
+
+  .row {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 3.75rem;
+    align-items: center;
+    gap: var(--s-3);
+    padding: 0.625rem var(--s-3) 0.625rem var(--s-4);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--fast) var(--ease);
+  }
+
+  /* The desk's colour as a spine on the left edge: faint at rest, solid when
+     it is the one that will open. */
+  .row::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.625rem;
+    left: 0;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--desk, var(--line-strong));
+    opacity: 0.35;
+    transition:
+      opacity var(--fast) var(--ease),
+      inset var(--base) var(--ease-out);
+  }
+
+  .row:hover:not(:disabled) {
+    background: var(--bg-raise);
+  }
+
+  .row[aria-pressed='true'] {
+    background: color-mix(in oklab, var(--desk, var(--accent)) 9%, transparent);
+  }
+
+  .row[aria-pressed='true']::before {
+    opacity: 1;
+    inset-block: 0;
+  }
+
+  .row:disabled {
+    cursor: default;
+    opacity: 0.65;
+  }
+
+  .row:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .meter {
+    display: block;
+    flex: 1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: var(--r-pill);
+    background: var(--line-strong);
+  }
+
+  .meter > span {
+    display: block;
+    height: 100%;
+    border-radius: var(--r-pill);
+    transition: width var(--base) var(--ease-out);
+  }
+
+  /* =========================================================================
+     Run trail — what one turn actually did
+     ========================================================================= */
+
+  .run {
+    border-left: 2px solid var(--desk, var(--accent));
+    padding-left: var(--s-3);
+  }
+
+  .run-steps {
+    display: none;
+    margin-top: var(--s-2);
+  }
+
+  .run[data-open='true'] .run-steps {
+    display: block;
+  }
+
+  .run-step {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--s-2);
+    padding-block: 0.3rem;
+  }
+
+  .run-step + .run-step {
+    border-top: 1px dashed var(--line);
   }
 
   /* Bottom of the chat column: clears the tab bar and the home indicator on
@@ -784,17 +1003,19 @@ body {
     animation: scan 1.6s var(--ease) infinite;
   }
 
+  /* Reveal left to right with a clip, not a stroke dash. A dash length is in
+     screen pixels under non-scaling-stroke, so a fixed 400 cut the line off
+     on any chart wider than 400px. */
   @keyframes draw {
     from {
-      stroke-dashoffset: 400;
+      clip-path: inset(0 100% 0 0);
     }
     to {
-      stroke-dashoffset: 0;
+      clip-path: inset(0 0 0 0);
     }
   }
 
   .draw {
-    stroke-dasharray: 400;
     animation: draw var(--slow) var(--ease-out) both;
   }
 }

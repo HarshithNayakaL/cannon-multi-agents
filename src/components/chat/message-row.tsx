@@ -2,6 +2,7 @@
 
 import { isToolUIPart } from 'ai';
 
+import { RunTrail } from '@/components/chat/run-trail';
 import { ToolCallCard } from '@/components/chat/tool-call-card';
 import type { CannonUIMessage } from '@/lib/agents/message';
 import type { AgentProfile } from '@/lib/agents/registry';
@@ -9,12 +10,15 @@ import type { AgentProfile } from '@/lib/agents/registry';
 export function MessageRow({
   message,
   profile,
+  live = false,
 }: {
   message: CannonUIMessage;
   profile: AgentProfile;
+  /** The turn still streaming. */
+  live?: boolean;
 }) {
   if (message.role === 'user') return <UserMessage message={message} />;
-  return <AssistantMessage message={message} profile={profile} />;
+  return <AssistantMessage message={message} profile={profile} live={live} />;
 }
 
 /**
@@ -44,45 +48,30 @@ function UserMessage({ message }: { message: CannonUIMessage }) {
 /**
  * The agent's turn runs full measure with a hairline gutter rule in the
  * agent's accent — enough to attribute the voice without an avatar chip on
- * every message.
+ * every message. Its run trail sits directly under the name.
  */
 function AssistantMessage({
   message,
   profile,
+  live,
 }: {
   message: CannonUIMessage;
   profile: AgentProfile;
+  live: boolean;
 }) {
-  const meta = message.metadata;
-
   return (
-    <div className="enter border-l-2 pl-3.5 sm:pl-5" style={{ borderColor: profile.accent }}>
-      <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <span
-          className="text-[0.6875rem] font-semibold tracking-[0.01em]"
-          style={{ color: profile.accent }}
-        >
-          {profile.name}
-        </span>
-        {meta?.simulated ? (
-          <span className="mono" style={{ color: 'var(--ink-3)' }}>
-            simulated
-          </span>
-        ) : null}
-        {meta?.fallbacks && meta.fallbacks.length > 0 ? (
-          <span
-            className="mono"
-            style={{ color: 'var(--warn)' }}
-            title={meta.fallbacks.map((event) => `${event.from} → ${event.to}`).join(', ')}
-          >
-            fallback fired
-          </span>
-        ) : null}
-        {meta?.latencyMs ? (
-          <span className="mono" style={{ color: 'var(--ink-3)' }}>
-            {(meta.latencyMs / 1000).toFixed(1)}s
-          </span>
-        ) : null}
+    <div className="enter">
+      <div
+        className="mb-1 text-[0.6875rem] font-semibold tracking-[0.01em]"
+        style={{ color: profile.accent }}
+      >
+        {profile.name}
+      </div>
+
+      {/* What this turn did — retrieval, tools, the model that answered —
+          collapsed to one line until asked. */}
+      <div className="mb-3">
+        <RunTrail message={message} accent={profile.accent} live={live} />
       </div>
 
       <div className="space-y-4">

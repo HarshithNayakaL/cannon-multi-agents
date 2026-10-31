@@ -17,7 +17,8 @@ test('recommends a desk as you type and says which words earned it', async ({ pa
 
   await expect(recommendation(page)).toHaveAttribute('data-agent', 'finance');
   await expect(recommendation(page).getByText('Finance Agent')).toBeVisible();
-  await expect(recommendation(page).getByText('spent')).toBeVisible();
+  // Phones show the matched words on one line, wider screens in a detail row.
+  await expect(recommendation(page).getByText('spent').filter({ visible: true })).toBeVisible();
 });
 
 test('re-routes when the question changes', async ({ page }) => {
@@ -58,7 +59,9 @@ test('offers to build a desk when nothing owns the vocabulary', async ({ page })
 test('states plainly that inference is simulated rather than listing models it cannot reach', async ({
   page,
 }) => {
-  await expect(page.getByText(/no provider key is set/i)).toBeVisible();
+  // Phones say it on the one-line model row, desktop in the models column;
+  // whichever is on screen at this width has to say it.
+  await expect(page.getByText(/no provider key is set/i).filter({ visible: true })).toBeVisible();
   await expect(page.getByTestId('model-tile')).toHaveCount(0);
 });
 
