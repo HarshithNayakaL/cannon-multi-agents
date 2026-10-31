@@ -153,9 +153,9 @@ export function AgentWorkspace({
           className="border-b px-4 pt-[env(safe-area-inset-top)] sm:px-10"
           style={{ borderColor: 'var(--line)' }}
         >
-          <header className="mx-auto flex w-full max-w-[52rem] items-center gap-2.5 py-3.5 sm:gap-3 sm:py-5 3xl:max-w-[62rem]">
+          <header className="mx-auto flex w-full max-w-[52rem] items-center gap-2 py-2 sm:gap-3 sm:py-4 3xl:max-w-[62rem]">
             <span
-              className="flex size-9 shrink-0 items-center justify-center rounded-[var(--r-md)] md:hidden"
+              className="flex size-10 shrink-0 items-center justify-center rounded-[var(--r-md)] md:hidden"
               style={{ background: profile.accentSoft, color: profile.accent }}
               aria-hidden="true"
             >
@@ -196,7 +196,7 @@ export function AgentWorkspace({
               onClick={() => setInspectorOpen((open) => !open)}
               aria-expanded={inspectorOpen}
               aria-label={inspectorOpen ? 'Hide prompt inspector' : 'Show prompt inspector'}
-              className="icon-btn size-10 shrink-0"
+              className="icon-btn shrink-0"
               style={inspectorOpen ? { color: 'var(--ink)' } : undefined}
             >
               <PanelRight className="size-[18px]" />
@@ -233,7 +233,9 @@ export function AgentWorkspace({
           </div>
         </div>
 
-        <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:px-10 md:pb-6">
+        {/* Reserves exactly the tab bar's height. While the keyboard is up that
+            drops to zero and the composer sits directly on the keys. */}
+        <div className="composer-dock px-3 pt-2 sm:px-10 md:pb-6">
           <div className="mx-auto w-full max-w-[52rem] 3xl:max-w-[62rem]">
             <Composer
               onSend={send}

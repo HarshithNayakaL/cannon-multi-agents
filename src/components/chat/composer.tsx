@@ -43,7 +43,10 @@ export function Composer({
   }
 
   return (
-    <form onSubmit={submit} className="material flex items-end gap-2 !rounded-[var(--r-xl)] p-2.5">
+    <form
+      onSubmit={submit}
+      className="material flex items-end gap-2 !rounded-[var(--r-xl)] p-1.5 sm:p-2"
+    >
       <textarea
         ref={textarea}
         rows={1}
@@ -52,24 +55,29 @@ export function Composer({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         aria-label="Message the agent"
-        className="scroll max-h-[176px] min-h-[36px] flex-1 resize-none bg-transparent px-3 py-2 text-[1rem] leading-relaxed outline-none"
+        className="scroll max-h-[176px] min-h-[var(--tap)] flex-1 resize-none bg-transparent px-3 py-[0.6rem] text-[1rem] leading-relaxed outline-none"
       />
 
       {busy ? (
         <button
           type="button"
+          onPointerDown={(event) => event.preventDefault()}
           onClick={onStop}
           aria-label="Stop generating"
-          className="btn btn-quiet size-10 min-h-0 shrink-0 !px-0"
+          className="btn btn-quiet btn-round"
         >
           <Square className="size-3.5" style={{ fill: 'currentColor' }} aria-hidden="true" />
         </button>
       ) : (
         <button
           type="submit"
+          // Keep focus — and the keyboard — in the field. Letting the tap move
+          // focus to the button closed the keyboard mid-tap on a phone, the
+          // layout jumped, and the click landed on whatever slid under it.
+          onPointerDown={(event) => event.preventDefault()}
           disabled={value.trim().length === 0}
           aria-label="Send message"
-          className="btn btn-primary size-10 min-h-0 shrink-0 !px-0"
+          className="btn btn-primary btn-round"
         >
           <ArrowUp className="size-4" aria-hidden="true" />
         </button>

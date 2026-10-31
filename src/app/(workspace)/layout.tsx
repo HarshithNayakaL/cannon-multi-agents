@@ -1,4 +1,5 @@
 import { AgentRail } from '@/components/shell/agent-rail';
+import { KeyboardWatcher } from '@/components/shell/keyboard-watcher';
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar';
 import { CanvasField } from '@/components/ui/canvas-field';
 import { listProfiles } from '@/lib/agents/registry';
@@ -15,6 +16,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
       <AgentRail profiles={profiles} />
       {children}
       <MobileTabBar profiles={profiles} />
+      <KeyboardWatcher />
     </div>
   );
 }

@@ -45,8 +45,10 @@
   --line-strong: rgba(255, 255, 255, 0.13);
 
   --ink: #f2f3f5;
-  --ink-2: #9ea4b0;
-  --ink-3: #6b7280;
+  --ink-2: #a3a9b5;
+  /* 4.6:1 on --bg-raise, the lightest surface it is set on. #6b7280 read
+     fine on the canvas and dropped under the floor on every raised tile. */
+  --ink-3: #8a919d;
 
   --accent: #4c8dff;
   --accent-soft: rgba(76, 141, 255, 0.14);
@@ -73,6 +75,16 @@
   --r-xl: 24px;
   --r-pill: 980px;
 
+  /* Touch geometry. 44 is the floor for anything tappable, 48 for the one
+     primary action on a screen. */
+  --tap: 44px;
+  --tap-primary: 48px;
+
+  /* Height the mobile tab bar reserves, excluding the safe-area inset. It is
+     zeroed while the on-screen keyboard is up (see KeyboardWatcher), which
+     is what lets the composer drop to sit directly on the keyboard. */
+  --tabbar-h: 4rem;
+
   /* Layered shadows — several soft passes rather than one hard drop. */
   --e-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --e-2: 0 1px 2px rgba(0, 0, 0, 0.28), 0 6px 16px rgba(0, 0, 0, 0.26);
@@ -84,6 +96,16 @@
   --slow: 480ms;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-keyboard='open'] {
+  --tabbar-h: 0rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --tabbar-h: 0rem;
+  }
 }
 
 :root[data-theme='light'] {
@@ -102,8 +124,11 @@
   --line-strong: rgba(9, 11, 16, 0.14);
 
   --ink: #1d1d1f;
-  --ink-2: #6e6e73;
-  --ink-3: #96969b;
+  --ink-2: #55555a;
+  /* #96969b was 2.7:1 on white — every label, tool count and source list in
+     the light theme failed. This is the lightest grey that clears 4.5:1 on
+     --bg-raise. */
+  --ink-3: #6a6a70;
 
   --good: #0f9d58;
   --warn: #b25e02;
@@ -359,7 +384,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: var(--s-2);
-    min-height: 44px;
+    min-height: var(--tap);
     padding: 0 var(--s-5);
     border-radius: var(--r-pill);
     font-size: 0.9375rem;
@@ -394,6 +419,21 @@ body {
     transform: translateY(0) scale(0.985);
   }
 
+  .btn-round {
+    width: var(--tap);
+    height: var(--tap);
+    min-height: 0;
+    padding: 0;
+    flex: none;
+  }
+
+  @media (pointer: coarse) {
+    .btn-round {
+      width: var(--tap-primary);
+      height: var(--tap-primary);
+    }
+  }
+
   .btn-quiet {
     background: transparent;
     border-color: var(--line-strong);
@@ -408,6 +448,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: var(--tap);
+    min-height: var(--tap);
     border-radius: var(--r-pill);
     color: var(--ink-3);
     border: 1px solid transparent;
@@ -474,11 +516,146 @@ body {
     align-items: center;
     gap: 0.3rem;
     padding: 0.2rem 0.6rem;
+    min-height: 2rem;
     border-radius: var(--r-pill);
     border: 1px solid var(--line-strong);
     font-size: 0.75rem;
     color: var(--ink-2);
     white-space: nowrap;
+  }
+
+  /* A chip that is a control rather than a label. On touch it grows to the
+     44px floor; with a mouse it stays compact so a row of them reads as a
+     row of suggestions, not a toolbar. */
+  .chip {
+    min-height: 2.25rem;
+    padding: 0 0.9rem;
+    font-size: 0.8125rem;
+    color: var(--ink-2);
+    background: var(--bg-panel);
+    cursor: pointer;
+  }
+
+  @media (pointer: coarse) {
+    .chip {
+      min-height: var(--tap);
+    }
+  }
+
+  /* Horizontal rail of chips on a phone: one line that scrolls sideways
+     rather than four lines of wrapped pills pushing the content down. */
+  .rail-x {
+    display: flex;
+    gap: var(--s-2);
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    margin-inline: calc(var(--s-4) * -1);
+    padding-inline: var(--s-4);
+    padding-block: 2px;
+  }
+
+  .rail-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail-x > * {
+    flex: none;
+    scroll-snap-align: start;
+  }
+
+  @media (min-width: 640px) {
+    .rail-x {
+      flex-wrap: wrap;
+      overflow: visible;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+
+  /* Affordances that are hover-revealed with a mouse are simply shown on
+     touch, where there is no hover to reveal them. */
+  @media (hover: none) {
+    .hover-reveal {
+      opacity: 1 !important;
+    }
+  }
+
+  /* =========================================================================
+     Mobile shell
+     ========================================================================= */
+
+  .tabbar {
+    min-height: var(--tabbar-h);
+    transition:
+      transform var(--base) var(--ease-out),
+      opacity var(--fast) var(--ease);
+  }
+
+  :root[data-keyboard='open'] .tabbar {
+    transform: translateY(110%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .tab {
+    display: flex;
+    min-width: 0;
+    min-height: 52px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: var(--r-md);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tab-pill {
+    display: inline-flex;
+    width: 3.25rem;
+    height: 1.875rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-pill);
+    transition: background var(--fast) var(--ease);
+  }
+
+  .tab-label {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  /* Scrolling pages end clear of the tab bar on a phone. */
+  .dispatch-page {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-h) + 2rem);
+  }
+
+  @media (min-width: 768px) {
+    .dispatch-page {
+      padding-bottom: 4rem;
+    }
+  }
+
+  /* Bottom of the chat column: clears the tab bar and the home indicator on
+     a phone, and nothing at all once the keyboard has taken that space. */
+  .composer-dock {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-h) + 0.5rem);
+  }
+
+  :root[data-keyboard='open'] .composer-dock {
+    padding-bottom: 0.5rem;
+  }
+
+  @media (min-width: 768px) {
+    .composer-dock {
+      padding-bottom: 1.5rem;
+    }
   }
 
   /* =========================================================================

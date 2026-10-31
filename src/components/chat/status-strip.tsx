@@ -35,7 +35,11 @@ export function ErrorPanel({ message, onRetry }: { message: string; onRetry: () 
         </div>
         <p className="t-small">{message}</p>
       </div>
-      <button type="button" onClick={onRetry} className="btn btn-quiet h-8 min-h-0 shrink-0">
+      <button
+        type="button"
+        onClick={onRetry}
+        className="btn btn-quiet h-11 min-h-0 shrink-0 pointer-fine:h-9"
+      >
         <RefreshCw className="size-3.5" aria-hidden="true" />
         Retry
       </button>

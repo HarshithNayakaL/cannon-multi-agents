@@ -49,7 +49,7 @@ export function ModelPicker({
         disabled={simulated}
         aria-expanded={open}
         aria-label="Choose the model for this agent"
-        className="btn btn-quiet h-9 min-h-0 max-w-[11rem] gap-1.5 !px-3 text-[0.8125rem]"
+        className="btn btn-quiet h-11 min-h-0 max-w-[9.5rem] gap-1.5 !px-3 text-[0.8125rem] sm:max-w-[11rem] pointer-fine:h-9"
         data-testid="model-picker"
       >
         <span className="truncate">{simulated ? 'simulated' : (selected?.name ?? 'Auto')}</span>

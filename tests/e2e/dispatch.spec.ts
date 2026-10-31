@@ -63,21 +63,34 @@ test('states plainly that inference is simulated rather than listing models it c
 });
 
 test('every desk is reachable from the shell', async ({ page, isMobile }) => {
-  const nav = page.getByRole('navigation', { name: isMobile ? 'Agent tabs' : 'Agent rail' });
-
   for (const [name, heading] of [
     ['Fitness', 'Fitness'],
     ['Work', 'Work'],
     ['Finance', 'Finance'],
     ['Learning', 'Learning'],
   ] as const) {
-    await nav.getByRole('link', { name, exact: true }).click();
+    // The phone bar holds three desks; every desk is in its "All" sheet.
+    if (isMobile) {
+      await page.getByTestId('tabbar-all').click();
+      await page
+        .getByRole('dialog', { name: 'All desks' })
+        .getByRole('link', { name: new RegExp(`^${name}`) })
+        .click();
+    } else {
+      await page
+        .getByRole('navigation', { name: 'Agent rail' })
+        .getByRole('link', { name, exact: true })
+        .click();
+    }
     // The header shows the short name on a phone and the full title above it.
     await expect(
       page.getByRole('heading', { level: 1, name: new RegExp(`^${heading}`) }),
     ).toBeVisible();
   }
 
-  await nav.getByRole('link', { name: 'Dispatch', exact: true }).click();
+  await page
+    .getByRole('navigation', { name: isMobile ? 'Agent tabs' : 'Agent rail' })
+    .getByRole('link', { name: 'Dispatch', exact: true })
+    .click();
   await expect(page.getByRole('heading', { level: 1, name: 'What do you need?' })).toBeVisible();
 });

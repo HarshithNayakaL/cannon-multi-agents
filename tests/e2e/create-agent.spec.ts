@@ -84,8 +84,13 @@ test('a created desk joins the rail and the routing vocabulary', async ({ page, 
   await page.goto('/');
   // Matched by href, not by label: the generated display name is the model's
   // (or the fallback generator's) wording, not the noun that was typed.
-  const nav = page.getByRole('navigation', { name: isMobile ? 'Agent tabs' : 'Agent rail' });
+  // On a phone a fifth desk lives in the tab bar's "All" sheet, not the bar.
+  if (isMobile) await page.getByTestId('tabbar-all').click();
+  const nav = isMobile
+    ? page.getByRole('dialog', { name: 'All desks' })
+    : page.getByRole('navigation', { name: 'Agent rail' });
   await expect(nav.locator(`a[href="/${slug}"]`)).toBeVisible();
+  if (isMobile) await page.keyboard.press('Escape');
 
   // Its generated keywords are live routing vocabulary, not decoration.
   await page.getByTestId('dispatch-input').fill(`what happened in the last ${noun} firing?`);

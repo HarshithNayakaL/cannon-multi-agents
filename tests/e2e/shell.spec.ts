@@ -67,9 +67,12 @@ test('switching desks re-lights the accent', async ({ page }) => {
   await expect.poll(accent).toBe('#c084fc');
 });
 
-test('dark is the default theme and the toggle survives a reload', async ({ page }) => {
+test('dark is the default theme and the toggle survives a reload', async ({ page, isMobile }) => {
   await visitFitness(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  // On a phone the toggle lives in the tab bar's "All" sheet.
+  if (isMobile) await page.getByTestId('tabbar-all').click();
 
   await page
     .getByRole('button', { name: /switch to light theme/i })
@@ -92,4 +95,37 @@ test('the page never scrolls sideways at any tested width', async ({ page }) => 
     );
     expect(overflow, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(1);
   }
+});
+
+test('the tab bar holds five slots however many desks exist, and keeps the active one', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, 'the tab bar is phone-only');
+
+  await page.goto('/learning');
+  const tabBar = page.getByRole('navigation', { name: 'Agent tabs' });
+  await expect(tabBar.locator('a, button')).toHaveCount(5);
+  // Learning is the fourth desk, outside the first three, and still shown.
+  await expect(tabBar.locator('a[href="/learning"]')).toHaveAttribute('aria-current', 'page');
+});
+
+test('the tab bar steps aside while typing so it never covers the composer', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, 'the tab bar is phone-only');
+
+  await visitFitness(page);
+  await page.getByLabel('Message the agent').focus();
+  await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
+
+  const viewport = page.viewportSize()!;
+  // The bar slides fully off the bottom of the screen…
+  await expect
+    .poll(async () => (await page.getByRole('navigation', { name: 'Agent tabs' }).boundingBox())!.y)
+    .toBeGreaterThanOrEqual(viewport.height);
+  // …and the composer drops into the space it left.
+  const composer = (await page.getByLabel('Message the agent').boundingBox())!;
+  expect(viewport.height - (composer.y + composer.height)).toBeLessThan(40);
 });

@@ -133,156 +133,168 @@ export function DispatchConsole({
 
   return (
     <div className="scroll relative z-10 h-full min-w-0 flex-1 overflow-y-auto px-4 sm:px-10">
-      <div className="mx-auto w-full max-w-[64rem] pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:pt-14 md:pb-16">
+      {/* One column on a phone: ask, verdict, then the field below it.
+          From lg the ask column pins to the left and the field scrolls beside
+          it, so the recommendation never scrolls out of view while you
+          compare desks — on a single column it did, half a screen in. */}
+      <div className="dispatch-page mx-auto w-full max-w-[76rem] pt-[calc(env(safe-area-inset-top)+1.5rem)] sm:pt-14 lg:grid lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:gap-14 xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] xl:gap-20">
         {/* ---------------- Ask ---------------- */}
-        <header className="enter mb-8 max-w-[42rem]">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="dot" style={{ background: 'var(--accent)' }} aria-hidden="true" />
-            <span className="mono" style={{ color: 'var(--ink-3)' }}>
-              {profiles.length} agents · {models.length || 'no'} models configured
-            </span>
-          </div>
+        <div className="lg:sticky lg:top-14 lg:self-start">
+          <header className="enter mb-6 max-w-[42rem] sm:mb-8">
+            <div className="mb-3 flex items-center gap-2 sm:mb-4">
+              <span className="dot" style={{ background: 'var(--accent)' }} aria-hidden="true" />
+              <span className="mono" style={{ color: 'var(--ink-3)' }}>
+                {profiles.length} agents · {models.length || 'no'} models configured
+              </span>
+            </div>
 
-          <h1 className="t-display mb-4">What do you need?</h1>
-          <p className="t-body max-w-[52ch]" style={{ color: 'var(--ink-2)' }}>
-            Say it in your own words. Cannon scores it against every desk&apos;s vocabulary, picks a
-            model for the shape of the request, and shows you both before anything runs.
-          </p>
-        </header>
+            <h1 className="t-display mb-3 sm:mb-4">What do you need?</h1>
+            <p className="t-body max-w-[52ch]" style={{ color: 'var(--ink-2)' }}>
+              Say it in your own words. Cannon picks the desk and the model, and shows you both
+              before anything runs.
+            </p>
+          </header>
 
-        <form onSubmit={dispatch} className="enter mb-4">
-          <div className="material flex items-center gap-2 !rounded-[var(--r-xl)] p-2.5">
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                // A new question invalidates a pick made for the old one.
-                setPickedAgent(null);
-                setPickedModel(null);
-              }}
-              placeholder="Log a set, check what's slipping, capture a spend…"
-              aria-label="Describe what you need"
-              data-testid="dispatch-input"
-              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[1rem] outline-none"
-            />
-            <button
-              type="submit"
-              disabled={!target}
-              aria-label={target ? `Open the ${target.name} agent` : 'Choose an agent first'}
-              className="btn btn-primary size-10 min-h-0 shrink-0 !px-0"
-            >
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </button>
-          </div>
-        </form>
-
-        {trimmed.length === 0 ? (
-          <div className="mb-12 flex flex-wrap gap-2">
-            {EXAMPLES.map((example) => (
+          <form onSubmit={dispatch} className="enter mb-3">
+            <div className="material flex items-center gap-2 !rounded-[var(--r-xl)] p-1.5 sm:p-2">
+              <input
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  // A new question invalidates a pick made for the old one.
+                  setPickedAgent(null);
+                  setPickedModel(null);
+                }}
+                placeholder="Log a set, check what's slipping, capture a spend…"
+                aria-label="Describe what you need"
+                data-testid="dispatch-input"
+                enterKeyHint="go"
+                className="min-h-[var(--tap)] min-w-0 flex-1 bg-transparent px-3 text-[1rem] outline-none"
+              />
               <button
-                key={example}
-                type="button"
-                onClick={() => setQuery(example)}
-                className="tag lift"
+                type="submit"
+                onPointerDown={(event) => event.preventDefault()}
+                disabled={!target}
+                aria-label={target ? `Open the ${target.name} agent` : 'Choose an agent first'}
+                className="btn btn-primary btn-round"
               >
-                {example}
+                <ArrowRight className="size-4" aria-hidden="true" />
               </button>
-            ))}
-          </div>
-        ) : (
-          <Recommendation
-            target={target}
-            match={agent ? (byId.get(agent) ?? null) : null}
-            modelKey={model}
-            models={models}
-            modelReason={suggestedModel?.reason ?? null}
-            overridden={pickedAgent !== null}
-            onGo={() => dispatch()}
-            onCreate={create}
-            busy={creating}
-          />
-        )}
+            </div>
+          </form>
 
-        {createError ? (
-          <p className="card t-small mb-6 p-4" style={{ color: 'var(--bad)' }}>
-            {createError}
-          </p>
-        ) : null}
+          {trimmed.length === 0 ? (
+            <div className="rail-x mb-10 lg:mb-0" aria-label="Examples" role="group">
+              {EXAMPLES.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => setQuery(example)}
+                  className="tag chip lift"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <Recommendation
+              target={target}
+              match={agent ? (byId.get(agent) ?? null) : null}
+              modelKey={model}
+              models={models}
+              modelReason={suggestedModel?.reason ?? null}
+              overridden={pickedAgent !== null}
+              onGo={() => dispatch()}
+              onCreate={create}
+              busy={creating}
+            />
+          )}
+
+          {createError ? (
+            <p className="card t-small mb-6 p-4" role="alert" style={{ color: 'var(--bad)' }}>
+              {createError}
+            </p>
+          ) : null}
+        </div>
 
         {/* ---------------- The field ---------------- */}
-        <Section
-          title="Agents"
-          note="Each desk has its own prompt, tools and retrieval scope. None can read another's data. If none of them fits, describe what you need above and Cannon will build one."
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {profiles.map((profile) => (
-              <AgentTile
-                key={profile.id}
-                profile={profile}
-                match={byId.get(profile.id) ?? null}
-                recommended={profile.id === suggestedAgent}
-                selected={profile.id === agent}
-                scoring={trimmed.length > 0}
-                onSelect={() => setPickedAgent(profile.id)}
-                onDelete={profile.custom ? () => remove(profile) : undefined}
-              />
-            ))}
+        <div className="min-w-0">
+          <Section
+            title="Agents"
+            note="Each desk has its own prompt, tools and retrieval scope. None can read another's data. If none of them fits, describe what you need above and Cannon will build one."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {profiles.map((profile) => (
+                <AgentTile
+                  key={profile.id}
+                  profile={profile}
+                  match={byId.get(profile.id) ?? null}
+                  recommended={profile.id === suggestedAgent}
+                  selected={profile.id === agent}
+                  scoring={trimmed.length > 0}
+                  onSelect={() => setPickedAgent(profile.id)}
+                  onDelete={profile.custom ? () => remove(profile) : undefined}
+                />
+              ))}
 
-            <CreateTile description={trimmed} busy={creating} onCreate={create} />
-          </div>
-        </Section>
-
-        <Section
-          title="Providers"
-          note="A pick moves that model to the front of the fallback chain. The rest stays behind it."
-        >
-          {models.length === 0 ? (
-            <p className="card t-small p-5">
-              No provider key is set, so inference is simulated against a scripted pattern-matcher.
-              Tools, retrieval and persistence still run for real. Set{' '}
-              <span className="mono">GROQ_API_KEY</span> or{' '}
-              <span className="mono">GOOGLE_GENERATIVE_AI_API_KEY</span> to use a real model.
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {(Object.keys(PROVIDERS) as ProviderId[]).map((providerId) => {
-                const owned = models.filter((entry) => entry.provider === providerId);
-                if (owned.length === 0) return null;
-                const provider = PROVIDERS[providerId];
-
-                return (
-                  <div key={providerId}>
-                    <div className="mb-2.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="dot"
-                          style={{ background: provider.accent }}
-                          aria-hidden="true"
-                        />
-                        <h3 className="t-subtitle">{provider.name}</h3>
-                      </span>
-                      <span className="t-label">{provider.blurb}</span>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {owned.map((entry) => (
-                        <ModelTile
-                          key={entry.key}
-                          model={entry}
-                          selected={entry.key === model}
-                          recommended={entry.key === suggestedModel?.model.key}
-                          onSelect={() =>
-                            setPickedModel((current) => (current === entry.key ? null : entry.key))
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              <CreateTile description={trimmed} busy={creating} onCreate={create} />
             </div>
-          )}
-        </Section>
+          </Section>
+
+          <Section
+            title="Providers"
+            note="A pick moves that model to the front of the fallback chain. The rest stays behind it."
+          >
+            {models.length === 0 ? (
+              <p className="card t-small p-5">
+                No provider key is set, so inference is simulated against a scripted
+                pattern-matcher. Tools, retrieval and persistence still run for real. Set{' '}
+                <span className="mono">GROQ_API_KEY</span> or{' '}
+                <span className="mono">GOOGLE_GENERATIVE_AI_API_KEY</span> to use a real model.
+              </p>
+            ) : (
+              <div className="space-y-6">
+                {(Object.keys(PROVIDERS) as ProviderId[]).map((providerId) => {
+                  const owned = models.filter((entry) => entry.provider === providerId);
+                  if (owned.length === 0) return null;
+                  const provider = PROVIDERS[providerId];
+
+                  return (
+                    <div key={providerId}>
+                      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="dot"
+                            style={{ background: provider.accent }}
+                            aria-hidden="true"
+                          />
+                          <h3 className="t-subtitle">{provider.name}</h3>
+                        </span>
+                        <span className="t-label">{provider.blurb}</span>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                        {owned.map((entry) => (
+                          <ModelTile
+                            key={entry.key}
+                            model={entry}
+                            selected={entry.key === model}
+                            recommended={entry.key === suggestedModel?.model.key}
+                            onSelect={() =>
+                              setPickedModel((current) =>
+                                current === entry.key ? null : entry.key,
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        </div>
       </div>
     </div>
   );
@@ -298,7 +310,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-12">
+    <section className="mt-10 first:mt-0 sm:mt-12 lg:first:mt-0">
       <div className="mb-4">
         <h2 className="t-title mb-1">{title}</h2>
         <p className="t-small max-w-[60ch]">{note}</p>
@@ -338,8 +350,8 @@ function Recommendation({
 
   if (!target) {
     return (
-      <div className="card enter mb-12 flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
-        <p className="t-small min-w-[16rem] flex-1">
+      <div className="card enter mb-10 flex flex-col gap-4 p-4 sm:p-5 lg:mb-0">
+        <p className="t-small">
           No existing desk owns that vocabulary. Build one for it, or pick a desk below — the scorer
           is a starting point, not a gate.
         </p>
@@ -347,7 +359,7 @@ function Recommendation({
           type="button"
           onClick={onCreate}
           disabled={busy}
-          className="btn btn-primary shrink-0"
+          className="btn btn-primary min-h-[var(--tap-primary)] w-full sm:w-auto sm:self-start"
           data-testid="create-from-recommendation"
         >
           {busy ? (
@@ -363,11 +375,11 @@ function Recommendation({
 
   return (
     <div
-      className="card enter mb-12 overflow-hidden"
+      className="card enter mb-10 overflow-hidden lg:mb-0"
       data-testid="dispatch-recommendation"
       data-agent={target.id}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:p-5">
         <span
           className="flex size-11 shrink-0 items-center justify-center rounded-[var(--r-md)]"
           style={{ background: target.accentSoft, color: target.accent }}
@@ -386,14 +398,20 @@ function Recommendation({
           <h2 className="t-subtitle truncate">{target.title}</h2>
         </div>
 
-        <button type="button" onClick={onGo} className="btn btn-primary shrink-0">
+        {/* Full width on a phone: it is the one action on this screen, and
+            the bottom of the card is where the thumb already is. */}
+        <button
+          type="button"
+          onClick={onGo}
+          className="btn btn-primary min-h-[var(--tap-primary)] w-full shrink-0 sm:w-auto lg:w-full xl:w-auto"
+        >
           Open
           <ArrowRight className="size-4" aria-hidden="true" />
         </button>
       </div>
 
       <div
-        className="grid gap-x-6 gap-y-3 border-t px-5 py-4 sm:grid-cols-2"
+        className="grid gap-x-6 gap-y-3 border-t px-4 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-1"
         style={{ borderColor: 'var(--line)' }}
       >
         <div>
@@ -459,7 +477,7 @@ function AgentTile({
           onClick={onDelete}
           aria-label={`Delete the ${profile.name} agent`}
           data-testid="delete-agent"
-          className="icon-btn absolute top-3 right-3 z-10 size-8"
+          className="icon-btn absolute top-2 right-2 z-10"
         >
           <Trash2 className="size-3.5" />
         </button>
@@ -471,7 +489,7 @@ function AgentTile({
         aria-pressed={selected}
         data-testid="agent-tile"
         data-agent={profile.id}
-        className="card lift flex h-full w-full flex-col items-start p-5 text-left"
+        className="card lift flex h-full w-full flex-col items-start p-4 text-left sm:p-5"
         style={selected ? { borderColor: profile.accent } : undefined}
       >
         <div className="mb-3 flex w-full items-center gap-3">
@@ -489,7 +507,7 @@ function AgentTile({
             </span>
           </span>
           {/* Nudged left of the delete button when there is one. */}
-          <span className={onDelete ? 'mr-9' : undefined}>
+          <span className={onDelete ? 'mr-10' : undefined}>
             {recommended ? (
               <Sparkles className="size-4 shrink-0" style={{ color: profile.accent }} />
             ) : selected ? (
@@ -563,7 +581,7 @@ function CreateTile({
       onClick={onCreate}
       disabled={!ready || busy}
       data-testid="create-tile"
-      className="lift flex h-full flex-col items-start rounded-[var(--r-lg)] p-5 text-left"
+      className="lift flex h-full flex-col items-start rounded-[var(--r-lg)] p-4 text-left sm:p-5"
       style={{
         border: '1px dashed var(--line-strong)',
         opacity: ready || busy ? 1 : 0.6,
