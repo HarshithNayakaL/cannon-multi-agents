@@ -4,6 +4,7 @@ import { ArrowRight, Check, Loader2, Plus, Sparkles, Trash2, Zap } from 'lucide-
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type FormEvent } from 'react';
 
+import { ModelBadges } from '@/components/chat/model-badges';
 import { AgentIcon } from '@/components/shell/agent-icon';
 import { rankAgents, recommendModel, type AgentMatch } from '@/lib/agents/dispatch';
 import type { AgentProfile } from '@/lib/agents/registry';
@@ -639,7 +640,10 @@ function ModelTile({
       style={selected ? { borderColor: 'var(--accent)' } : undefined}
     >
       <div className="mb-1.5 flex w-full items-center gap-2">
-        <span className="t-subtitle min-w-0 flex-1 truncate">{model.name}</span>
+        <span className="t-subtitle min-w-0 truncate">{model.name}</span>
+        <span className="flex flex-1 items-center gap-1.5">
+          <ModelBadges model={model} />
+        </span>
         {recommended ? (
           <Sparkles className="size-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
         ) : selected ? (

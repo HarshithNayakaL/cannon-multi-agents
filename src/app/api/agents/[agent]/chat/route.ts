@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { lastUserText, type CannonMetadata, type CannonUIMessage } from '@/lib/agents/message';
 import { resolveAgent } from '@/lib/agents/registry';
+import { listModels } from '@/lib/ai/live-models';
 import { resolveModel } from '@/lib/ai/provider';
 import type { FallbackEvent } from '@/lib/ai/fallback';
 import { createLeakGuardTransform } from '@/lib/ai/leak-guard';
@@ -43,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       throw new Error('messages must be a non-empty array');
     }
     messages = body.messages;
-    // Validated against the catalog inside resolveModel; anything unknown is
+    // Validated against the live model list inside resolveModel; anything unknown is
     // ignored rather than passed through to a provider.
     preferredModel = typeof body.model === 'string' ? body.model : undefined;
   } catch {
@@ -85,6 +86,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   }
 
   const fallbacks: NonNullable<CannonMetadata['fallbacks']> = [];
+  const { models: listed } = await listModels();
   const { model, chain, simulated } = resolveModel(
     agent.id,
     (event: FallbackEvent) => {
@@ -94,6 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       );
     },
     preferredModel,
+    listed,
   );
 
   const startedAt = Date.now();

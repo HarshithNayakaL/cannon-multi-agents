@@ -2,6 +2,7 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 
 import { isReservedAgentId, toSlug, type CustomAgentInput } from '@/lib/agents/types';
+import { listModels } from '@/lib/ai/live-models';
 import { resolveModel } from '@/lib/ai/provider';
 
 /**
@@ -159,7 +160,8 @@ export async function generateAgent(
   const trimmed = description.trim();
   if (trimmed.length < 3) throw new Error('Describe what the agent is for.');
 
-  const { model, simulated } = resolveModel('dispatch');
+  const { models: listed } = await listModels();
+  const { model, simulated } = resolveModel('dispatch', undefined, undefined, listed);
 
   let spec: Spec;
   if (simulated) {

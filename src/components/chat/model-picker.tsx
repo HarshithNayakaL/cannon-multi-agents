@@ -4,6 +4,7 @@ import { Check, ChevronDown, Zap } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
+import { ModelBadges } from '@/components/chat/model-badges';
 import { PROVIDERS, formatContext, type ModelInfo } from '@/lib/ai/catalog';
 
 /**
@@ -123,6 +124,7 @@ export function ModelPicker({
                             detail={model.strength}
                             meta={
                               <>
+                                <ModelBadges model={model} />
                                 {model.speed ? (
                                   <span className="mono inline-flex items-center gap-1">
                                     <Zap className="size-3" aria-hidden="true" />

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { listModels } from '@/lib/ai/live-models';
 import { describeCapabilities, readEnv } from '@/lib/env';
 
 export const runtime = 'nodejs';
@@ -32,6 +33,10 @@ export async function GET() {
     }
   }
 
+  // Which model lists are live and which fell back to the built-in catalog —
+  // the first thing to check when the picker looks stale.
+  const listing = await listModels(env);
+
   return NextResponse.json({
     ok: true,
     service: 'cannon',
@@ -41,6 +46,11 @@ export async function GET() {
       supabaseUrlLooksValid,
       googleModel: env.googleModel,
       groqModel: env.groqModel,
+    },
+    models: {
+      sources: listing.sources,
+      count: listing.models.length,
+      new: listing.models.filter((model) => model.isNew).map((model) => model.key),
     },
     timestamp: new Date().toISOString(),
   });

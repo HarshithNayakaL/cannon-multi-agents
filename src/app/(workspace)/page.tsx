@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { DispatchConsole } from '@/components/dispatch/dispatch-console';
 import { listProfiles } from '@/lib/agents/registry';
-import { availableModels } from '@/lib/ai/provider';
+import { listModels } from '@/lib/ai/live-models';
 
 export const metadata: Metadata = {
   title: 'Dispatch — Cannon',
@@ -29,5 +29,6 @@ export const dynamic = 'force-dynamic';
  * key for without the keys themselves going anywhere near the browser.
  */
 export default async function DispatchRoute() {
-  return <DispatchConsole profiles={await listProfiles()} models={availableModels()} />;
+  const [profiles, { models }] = await Promise.all([listProfiles(), listModels()]);
+  return <DispatchConsole profiles={profiles} models={models} />;
 }

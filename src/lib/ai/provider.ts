@@ -5,7 +5,8 @@ import type { LanguageModelV4 } from '@ai-sdk/provider';
 import type { AgentId } from '@/lib/agents/types';
 import { DemoLanguageModel } from '@/lib/ai/demo-model';
 import { createFallbackModel, type FallbackEvent } from '@/lib/ai/fallback';
-import { MODELS, parseModelKey, type ModelInfo } from '@/lib/ai/catalog';
+import { parseModelKey, type ModelInfo } from '@/lib/ai/catalog';
+import { catalogModels } from '@/lib/ai/live-models';
 import { readEnv } from '@/lib/env';
 
 export type ModelChain = {
@@ -15,13 +16,12 @@ export type ModelChain = {
   simulated: boolean;
 };
 
-/** Which catalog entries this deployment actually has keys for. */
+/**
+ * Catalog entries this deployment has keys for — the offline answer. Pages use
+ * `listModels()` from `live-models.ts`, which asks the providers instead.
+ */
 export function availableModels(env = readEnv()): ModelInfo[] {
-  return MODELS.filter((model) => {
-    if (model.provider === 'groq') return Boolean(env.groqApiKey);
-    if (model.provider === 'google') return Boolean(env.googleApiKey);
-    return false;
-  });
+  return catalogModels(env);
 }
 
 /**
@@ -31,14 +31,20 @@ export function availableModels(env = readEnv()): ModelInfo[] {
  * time-to-first-token budget; Gemini is a different vendor entirely, so a
  * Groq outage or quota exhaustion does not take the assistant down with it.
  *
- * `preferredKey` lets the caller pin a specific catalog model to the front of
- * the chain. The rest of the chain stays behind it, so an explicit choice
- * still degrades rather than failing outright.
+ * `preferredKey` lets the caller pin a model to the front of the chain. The
+ * rest of the chain stays behind it, so an explicit choice still degrades
+ * rather than failing outright.
+ *
+ * `listed` is the live model list. When given, a pin is honoured if the
+ * provider lists it (so a model that appeared this week can be chosen), and a
+ * configured default the provider no longer lists is replaced by the first
+ * model it does — a deprecation upstream then costs nothing here.
  */
 export function resolveModel(
   agent: AgentId,
   onFallback?: (event: FallbackEvent) => void,
   preferredKey?: string,
+  listed?: ModelInfo[],
 ): ModelChain {
   const env = readEnv();
   const models: LanguageModelV4[] = [];
@@ -60,11 +66,22 @@ export function resolveModel(
   };
 
   // An explicit pick goes first; unknown keys are ignored rather than trusted.
-  const preferred = parseModelKey(preferredKey);
+  const pinned = listed?.find((entry) => entry.key === preferredKey);
+  const preferred = pinned
+    ? { provider: pinned.provider, modelId: pinned.modelId }
+    : parseModelKey(preferredKey);
   if (preferred) add(preferred.provider, preferred.modelId);
 
-  add('groq', env.groqModel);
-  add('google', env.googleModel);
+  const defaultFor = (provider: 'groq' | 'google', configured: string) => {
+    if (!listed) return configured;
+    const own = listed.filter((entry) => entry.provider === provider);
+    // No live entries for this provider means no listing to judge by.
+    if (own.length === 0 || own.some((entry) => entry.modelId === configured)) return configured;
+    return own[0].modelId;
+  };
+
+  add('groq', defaultFor('groq', env.groqModel));
+  add('google', defaultFor('google', env.googleModel));
 
   if (models.length === 0) {
     const demo = new DemoLanguageModel(agent);

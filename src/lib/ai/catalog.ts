@@ -1,11 +1,13 @@
 /**
- * The model catalog.
+ * The model catalog — annotations, not the source of truth.
  *
- * Every entry is a model the installed provider SDKs actually accept — the
- * Groq ids come from `GroqChatModelId` in `@ai-sdk/groq`, the Google ids from
- * Google's current stable line. Throughput figures are the providers' own
- * published numbers, kept here so the picker can say *why* one model beats
- * another for a given job rather than just listing names.
+ * Which models exist is decided by each provider's live `/models` listing
+ * (see `live-models.ts`). This file supplies what those listings do not: the
+ * published throughput and a one-line note on what each model is actually for,
+ * so the picker can say *why* one beats another. A model listed live but
+ * absent here still appears, marked new; one here but no longer listed live
+ * is dropped. The catalog is also the stand-in when a listing cannot be
+ * fetched, so it should track each provider's current production line.
  */
 
 export type ProviderId = 'groq' | 'google';
@@ -49,6 +51,10 @@ export type ModelInfo = {
   strength: string;
   /** Tags the recommender scores against. */
   traits: ModelTrait[];
+  /** Listed live by the provider but not yet annotated in this catalog. */
+  isNew?: boolean;
+  /** The provider labels it preview: may be withdrawn at short notice. */
+  preview?: boolean;
 };
 
 export type ModelTrait = 'fastest' | 'balanced' | 'reasoning' | 'long-context' | 'economical';
@@ -94,23 +100,28 @@ export const MODELS: ModelInfo[] = [
     strength: 'Cheapest per token. Fine for capture, weak on judgement.',
     traits: ['fastest', 'economical'],
   },
+  // Kimi K2 and Qwen3 32B were retired by Groq; Qwen3.8 replaced the latter.
   {
-    key: 'groq:moonshotai/kimi-k2-instruct-0905',
+    key: 'groq:qwen/qwen3.8-27b',
     provider: 'groq',
-    modelId: 'moonshotai/kimi-k2-instruct-0905',
-    name: 'Kimi K2',
-    contextTokens: 262_144,
-    strength: 'Built for long agentic chains and wide context.',
-    traits: ['long-context', 'reasoning'],
+    modelId: 'qwen/qwen3.8-27b',
+    name: 'Qwen3.8 27B',
+    speed: 450,
+    contextTokens: 131_072,
+    strength: 'Newest reasoning model on Groq. Careful step-by-step tool use.',
+    traits: ['reasoning', 'balanced'],
+    preview: true,
   },
   {
-    key: 'groq:qwen/qwen3-32b',
+    key: 'groq:minimaxai/minimax-m2.7',
     provider: 'groq',
-    modelId: 'qwen/qwen3-32b',
-    name: 'Qwen3 32B',
-    contextTokens: 131_072,
-    strength: 'Step-by-step reasoning at a mid-size footprint.',
-    traits: ['reasoning', 'balanced'],
+    modelId: 'minimaxai/minimax-m2.7',
+    name: 'MiniMax M2.7',
+    speed: 260,
+    contextTokens: 196_608,
+    strength: 'Long agentic chains with the widest context on Groq.',
+    traits: ['long-context', 'reasoning'],
+    preview: true,
   },
   {
     key: 'google:gemini-3.6-flash',

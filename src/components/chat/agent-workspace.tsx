@@ -15,7 +15,7 @@ import { PromptInspector } from '@/components/inspector/prompt-inspector';
 import { AgentIcon } from '@/components/shell/agent-icon';
 import type { CannonMetadata, CannonUIMessage } from '@/lib/agents/message';
 import type { AgentProfile } from '@/lib/agents/registry';
-import { findModel, type ModelInfo } from '@/lib/ai/catalog';
+import type { ModelInfo } from '@/lib/ai/catalog';
 import type { RuntimeCapabilities } from '@/lib/env';
 
 const WIDE_QUERY = '(min-width: 1280px)';
@@ -54,9 +54,7 @@ export function AgentWorkspace({
   // catalog *and* this deployment can serve it; a stale link must not pin a
   // model the server would silently ignore.
   const [model, setModel] = useState<string | undefined>(() =>
-    initialModel && findModel(initialModel) && models.some((entry) => entry.key === initialModel)
-      ? initialModel
-      : undefined,
+    initialModel && models.some((entry) => entry.key === initialModel) ? initialModel : undefined,
   );
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
 

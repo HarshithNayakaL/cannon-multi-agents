@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { AgentWorkspace } from '@/components/chat/agent-workspace';
 import { resolveAgent, toProfile } from '@/lib/agents/registry';
-import { availableModels } from '@/lib/ai/provider';
+import { listModels } from '@/lib/ai/live-models';
 import { describeCapabilities } from '@/lib/env';
 
 /**
@@ -41,12 +41,13 @@ export default async function AgentRoute({
   if (!agent) notFound();
 
   const search = await searchParams;
+  const { models } = await listModels();
 
   return (
     <AgentWorkspace
       profile={toProfile(agent)}
       capabilities={describeCapabilities()}
-      models={availableModels()}
+      models={models}
       initialQuery={one(search.q)}
       initialModel={one(search.model)}
     />

@@ -524,6 +524,20 @@ body {
     white-space: nowrap;
   }
 
+  /* Small status word beside a name: New, Preview. */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.4rem;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--line-strong);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.35rem;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
   /* A chip that is a control rather than a label. On touch it grows to the
      44px floor; with a mouse it stays compact so a row of them reads as a
      row of suggestions, not a toolbar. */
